@@ -37,6 +37,7 @@ const ICONS: Record<string, Piece[]> = {
   trophy: [S("M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3M12 14v4M8 20h8")],
   feather: [S("M20 4C10 4 5 9 5 19M5 19l4-4M20 4c0 8-4 12-11 11M9 15c2-1 6-4 8-8")],
   eyeslash: [S("M3 3l18 18M2 12c3-5 7-7 10-7M22 12c-3 5-7 7-10 7")],
+  alert: [S("M12 3l10 18H2z"), S("M12 10v5M12 18h.1")],
   /* asks */
   give: [S("M4 10h16v10H4zM3 7h18v3H3zM12 7v13M12 7C10 3 6 4 7 7M12 7c2-4 6-3 5 0")],
   ban: [S(circle(12, 12, 9)), S("M5.6 5.6l12.8 12.8")],

@@ -128,8 +128,9 @@ function startDay(s: GameState, content: Content, t: Tuning, ev: Ev[]): void {
   prepareWheel(s, content, t);
 }
 
+/** The petition at the front of the queue (the last one once the day's queue is exhausted). */
 export function currentRequest(s: GameState, content: Content): RequestDef {
-  return content.requests.get(s.queue[s.slot]!)!;
+  return content.requests.get(s.queue[Math.min(s.slot, s.queue.length - 1)]!)!;
 }
 
 /* ------------------------------------------------------------------- wheel */
@@ -306,7 +307,7 @@ export function rule(s: GameState, content: Content, t: Tuning, frac: number, in
 }
 
 /** Daily tick: omen, taxes, happiness drag, gold fixing unrest, population growth; then win/lose. */
-function endDay(s: GameState, content: Content, t: Tuning, ev: Ev[]): void {
+export function endDay(s: GameState, content: Content, t: Tuning, ev: Ev[]): void {
   s.dayEnded = true;
   if (s.stats.hazardToday === 0) s.stats.cleanDays++;
   const omen = s.omen ? content.omens.get(s.omen)! : null;

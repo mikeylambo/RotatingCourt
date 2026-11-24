@@ -8,7 +8,8 @@ import { drawIcon } from "../art/icons";
 import { drawPanel } from "../art/backdrop";
 
 export const W = 540;
-export const H = 960;
+/** Logical height: 960 for landscape/tablet, extended (up to 1200) on tall phones so the stage fills the screen. */
+export let H = 960;
 
 export const PAL = {
   ink: "#2a1d14",
@@ -40,9 +41,11 @@ export interface Stage {
   /** Safe-area insets in logical units. */
   safeT: number;
   safeB: number;
+  /** Vertical offset applied to non-play screens so menus centre on tall phones. */
+  offY: number;
 }
 
-export const stage: Stage = { scale: 1, ox: 0, oy: 0, cssW: W, cssH: H, dpr: 1, safeT: 0, safeB: 0 };
+export const stage: Stage = { scale: 1, ox: 0, oy: 0, cssW: W, cssH: H, dpr: 1, safeT: 0, safeB: 0, offY: 0 };
 
 function readInsets(): { t: number; b: number } {
   const probe = document.createElement("div");
@@ -60,6 +63,8 @@ export function layoutStage(cssW: number, cssH: number, dpr: number): void {
   stage.cssW = cssW;
   stage.cssH = cssH;
   stage.dpr = dpr;
+  const aspect = cssH / cssW;
+  H = aspect > 960 / 540 ? Math.min(1200, Math.round(W * aspect)) : 960;
   stage.scale = Math.min(cssW / W, cssH / H);
   stage.ox = (cssW - W * stage.scale) / 2;
   stage.oy = (cssH - H * stage.scale) / 2;
@@ -68,11 +73,14 @@ export function layoutStage(cssW: number, cssH: number, dpr: number): void {
 }
 
 export function toLogical(clientX: number, clientY: number): { x: number; y: number } {
-  return { x: (clientX - stage.ox) / stage.scale, y: (clientY - stage.oy) / stage.scale };
+  return { x: (clientX - stage.ox) / stage.scale, y: (clientY - stage.oy) / stage.scale - stage.offY };
 }
 
+/** Player text scale (accessibility); icons and layout do not change. */
+export const view = { textScale: 1 };
+
 export function setFont(ctx: CanvasRenderingContext2D, size: number, weight = "bold"): void {
-  ctx.font = `${weight} ${Math.round(size)}px ${FONT}`;
+  ctx.font = `${weight} ${Math.round(size * view.textScale)}px ${FONT}`;
 }
 
 export function text(
@@ -221,7 +229,7 @@ export class A11yMirror {
       b.dataset.id = it.id;
       b.setAttribute("aria-label", it.aria);
       if (it.disabled || it.locked) b.setAttribute("aria-disabled", "true");
-      b.style.cssText = `position:absolute;left:${stage.ox + it.x * stage.scale}px;top:${stage.oy + it.y * stage.scale}px;width:${it.w * stage.scale}px;height:${it.h * stage.scale}px;opacity:0;pointer-events:none;`;
+      b.style.cssText = `position:absolute;left:${stage.ox + it.x * stage.scale}px;top:${stage.oy + (it.y + stage.offY) * stage.scale}px;width:${it.w * stage.scale}px;height:${it.h * stage.scale}px;opacity:0;pointer-events:none;`;
       b.addEventListener("focus", () => this.onFocusId(it.id));
       this.host.appendChild(b);
       this.buttons.push(b);

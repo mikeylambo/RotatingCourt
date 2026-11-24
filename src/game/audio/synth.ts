@@ -54,6 +54,9 @@ const RECIPES: Record<SoundEvent, Recipe> = {
   "ui.confirm": (a, o, t) => tone(a, o, t, 660, 880, 0.09, "square", 0.1)
 };
 
+/** Every semantic event this layer can voice. */
+export const soundEvents = (): string[] => Object.keys(RECIPES);
+
 export class SynthAudio implements AudioSystem {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
