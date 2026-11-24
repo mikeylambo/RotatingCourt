@@ -589,3 +589,12 @@ export function daysSurvived(s: GameState): number {
 export function tuningFor(base: Tuning, overrides?: Tuning): Tuning {
   return overrides ? { ...base, ...overrides } : { ...base };
 }
+
+/** How far the court has rotted: 0 sworn, 1 strained, 2 hollowed, 3 usurped. Driven by marks and (hidden) Usurpation. */
+export function courtStage(s: GameState, t: Tuning): 0 | 1 | 2 | 3 {
+  const m = s.marks.length, u = s.usurp;
+  if (m >= t.rot3Marks! || u >= t.rot3Usurp!) return 3;
+  if (m >= t.rot2Marks! || u >= t.rot2Usurp!) return 2;
+  if (m >= t.rot1Marks! || u >= t.rot1Usurp!) return 1;
+  return 0;
+}

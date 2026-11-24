@@ -15,9 +15,13 @@ export interface Profile {
   achievements: { unlocked: string[] };
   /** Mid-run snapshot so a reign survives a reload. */
   activeRun: GameState | null;
+  /** The Vow Night + three days tutorial has been finished or skipped. */
+  tutorialDone: boolean;
+  /** How many times each ending has been reached. */
+  endings: Record<string, number>;
 }
 
-export const SCHEMA = 1;
+export const SCHEMA = 2;
 
 export const emptyProfile = (): Profile => ({
   runs: 0,
@@ -27,8 +31,18 @@ export const emptyProfile = (): Profile => ({
   daily: {},
   challenges: {},
   achievements: { unlocked: [] },
-  activeRun: null
+  activeRun: null,
+  tutorialDone: false,
+  endings: {}
 });
+
+/** v1 -> v2 (Deceiver edit): keep every record; an in-progress v1 run cannot resume (its state has no vows), and players who already finished runs skip the tutorial. */
+export const migrations = {
+  1: (data: unknown) => {
+    const d = data as Partial<Profile>;
+    return { ...d, activeRun: null, tutorialDone: (d.runs ?? 0) > 0, endings: {} };
+  }
+};
 
 export class ProfileStore {
   profile: Profile = emptyProfile();
@@ -36,8 +50,8 @@ export class ProfileStore {
   private pending: Promise<void> = Promise.resolve();
 
   constructor(storage: StorageAdapter) {
-    // Add a migration entry here when SCHEMA changes (rule 20): migrations[oldVersion] = (data) => newData.
-    this.saves = new SaveManager<Profile>(storage, "profile", SCHEMA, {});
+    // Schema changes need a migration entry above (rule 20).
+    this.saves = new SaveManager<Profile>(storage, "profile", SCHEMA, migrations);
   }
 
   async load(): Promise<void> {

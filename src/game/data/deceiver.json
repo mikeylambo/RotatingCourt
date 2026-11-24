@@ -1,31 +1,142 @@
 {
-  "hurts": { "commons": "yes", "temple": "yes", "army": "no", "treasury": "no" },
+  "hurts": {
+    "commons": "yes",
+    "temple": "yes",
+    "army": "no",
+    "treasury": "no"
+  },
   "tells": [
-    { "id": "tremble",   "signal": "lie" },
-    { "id": "seal",      "signal": "lie" },
-    { "id": "sleepless", "signal": "lie" },
-    { "id": "sweat",     "signal": "lie" },
-    { "id": "shifty",    "signal": "lie" },
-    { "id": "steady",    "signal": "truth" },
-    { "id": "trueseal",  "signal": "truth" },
-    { "id": "calm",      "signal": "truth" }
+    {
+      "id": "tremble",
+      "signal": "lie"
+    },
+    {
+      "id": "seal",
+      "signal": "lie"
+    },
+    {
+      "id": "sleepless",
+      "signal": "lie"
+    },
+    {
+      "id": "sweat",
+      "signal": "lie"
+    },
+    {
+      "id": "shifty",
+      "signal": "lie"
+    },
+    {
+      "id": "steady",
+      "signal": "truth"
+    },
+    {
+      "id": "trueseal",
+      "signal": "truth"
+    },
+    {
+      "id": "calm",
+      "signal": "truth"
+    }
   ],
   "deals": [
-    { "id": "mercy",  "icon": "widen",     "usurp": 1, "days": 3 },
-    { "id": "slow",   "icon": "hourglass", "usurp": 1, "days": 3 },
-    { "id": "ledger", "icon": "purse",     "usurp": 1, "fx": [0, 0, 18] },
-    { "id": "clean",  "icon": "erase",     "usurp": 2 }
+    {
+      "id": "mercy",
+      "icon": "widen",
+      "usurp": 1,
+      "days": 3
+    },
+    {
+      "id": "slow",
+      "icon": "hourglass",
+      "usurp": 1,
+      "days": 3
+    },
+    {
+      "id": "ledger",
+      "icon": "purse",
+      "usurp": 1,
+      "fx": [
+        0,
+        0,
+        18
+      ]
+    },
+    {
+      "id": "clean",
+      "icon": "erase",
+      "usurp": 2
+    }
   ],
-  "debt": { "id": "deceiver.debt", "archetype": "banker", "ask": ["blade","coin"], "line": "Pay what you owe.", "y": [0,0,-9], "n": [-3,-6,0] },
+  "debt": {
+    "id": "deceiver.debt",
+    "archetype": "banker",
+    "ask": [
+      "blade",
+      "coin"
+    ],
+    "line": "Pay what you owe.",
+    "y": [
+      0,
+      0,
+      -9
+    ],
+    "n": [
+      -3,
+      -6,
+      0
+    ]
+  },
   "advice": {
-    "yes": ["Grant it, Majesty.", "Say yes. Trust me.", "A kind word costs nothing.", "They deserve your mercy."],
-    "no":  ["Refuse. Trust me.", "Send them away.", "Majesty, say no.", "Do not be played."]
+    "yes": [
+      "Grant it, Majesty.",
+      "Say yes. Trust me.",
+      "A kind word costs nothing.",
+      "They deserve your mercy."
+    ],
+    "no": [
+      "Refuse. Trust me.",
+      "Send them away.",
+      "Majesty, say no.",
+      "Do not be played."
+    ]
   },
   "greeting": "Swear, my king.",
-  "caught": ["How clever of you.", "Ah. You saw that."],
+  "caught": [
+    "How clever of you.",
+    "Ah. You saw that."
+  ],
   "tutorial": [
-    { "requests": ["farmer.b"], "tell": null,      "advice": null,   "truth": true },
-    { "requests": ["baker.a"],  "tell": "steady",   "advice": "true", "truth": true },
-    { "vow": true, "requests": ["merchant.b"], "tell": "seal", "advice": "lie", "truth": false, "deal": "mercy" }
+    {
+      "requests": [
+        "farmer.b"
+      ],
+      "tell": null,
+      "advice": null,
+      "truth": true
+    },
+    {
+      "requests": [
+        "baker.a"
+      ],
+      "tell": "steady",
+      "advice": "true",
+      "truth": true
+    },
+    {
+      "vow": true,
+      "requests": [
+        "merchant.b"
+      ],
+      "tell": "seal",
+      "advice": "lie",
+      "truth": false,
+      "deal": "mercy"
+    }
+  ],
+  "offer": [
+    "A gift, my king.",
+    "A small favour?",
+    "Allow me, Majesty."
   ]
 }

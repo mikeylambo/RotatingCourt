@@ -38,6 +38,7 @@ const ICONS: Record<string, Piece[]> = {
   feather: [S("M20 4C10 4 5 9 5 19M5 19l4-4M20 4c0 8-4 12-11 11M9 15c2-1 6-4 8-8")],
   eyeslash: [S("M3 3l18 18M2 12c3-5 7-7 10-7M22 12c-3 5-7 7-10 7")],
   alert: [S("M12 3l10 18H2z"), S("M12 10v5M12 18h.1")],
+  skip: [F("M5 5l8 7-8 7zM13 5l8 7-8 7z")],
   /* Deceiver, tells, vows and deals */
   tremble: [S("M8 20v-8a1.5 1.5 0 0 1 3 0V9a1.5 1.5 0 0 1 3 0v3a1.5 1.5 0 0 1 3 0v6l-2 4H10z"), S("M3 9l2 1-2 1M21 9l-2 1 2 1M3 14l2 1-2 1M21 14l-2 1 2 1")],
   seal: [S(circle(12, 12, 8)), S(circle(12, 12, 4)), S("M12 4l-2 4 3 3-3 3 2 6")],

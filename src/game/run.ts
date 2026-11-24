@@ -6,12 +6,13 @@
 import { drawIcon } from "./art/icons";
 import { drawPanel } from "./art/backdrop";
 import { visual } from "./art/visuals";
-import { currentRequest, nextDay, pointerAt, rule, segAt } from "./engine";
+import { answerDeal, courtStage, currentRequest, nextDay, pointerAt, rule, segAt } from "./engine";
 import { drawCalendar, drawGauges, drawPopups, drawQueue, STAT_ICON, type GaugeView, type Popup } from "./render/hud";
 import { drawWheel } from "./render/wheel";
 import { emit } from "./audio/synth";
 import { H, PAL, W, stage, text, type Item } from "./ui/kit";
-import type { Content, Ev, GameState, RequestDef, SegKind, StatKey, Tuning, Wheel } from "./types";
+import { FACTION_ICON } from "./types";
+import type { Content, Cur, Ev, GameState, RequestDef, SegKind, StatKey, Tuning, Wheel } from "./types";
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -31,7 +32,7 @@ export interface RunHost {
   onEvents(events: Ev[], s: GameState): void;
 }
 
-type Phase = "spin" | "lock" | "dayend" | "over";
+type Phase = "deal" | "spin" | "lock" | "dayend" | "over";
 
 const ARM = 0.18; // seconds a wheel must have run before a stop counts, so a leftover tap cannot fire it
 const ENTER = 0.38;
@@ -74,6 +75,10 @@ export class Run {
   private shownWheel!: Wheel;
   private shownReq!: RequestDef;
   private shownSlot = 0;
+  private shownCur!: Cur;
+  private shownLine = 0;
+  private exposeFlash = 0;
+  private vowFlash = 0;
 
   constructor(readonly host: RunHost, readonly state: GameState, readonly t: Tuning) {
     this.view = {
@@ -134,7 +139,36 @@ export class Run {
     this.shownReq = req;
     this.shownWheel = s.wheel!;
     this.shownSlot = s.slot;
-    this.host.announce(`${req.line ?? ""} ${req.ask.join(" ")}`.trim());
+    this.shownCur = structuredClone(s.cur);
+    this.shownLine = (s.day * 7 + s.slot * 3) % 4;
+    if (s.slot === 0) emit("deceiver.motif", courtStage(s, this.t));
+    if (s.dealOffer) this.phase = "deal";
+    const advice = this.shownCur.advice ? `advice ${this.shownCur.advice.ruling}` : "";
+    this.host.announce(`${req.line ?? ""} ${req.ask.join(" ")} ${this.shownCur.tell ?? ""} ${advice}`.trim());
+  }
+
+  /** Answer the Deceiver's dawn deal (accept or refuse), then the petition proceeds with the wheel his deal shaped. */
+  answerDeal(accept: boolean): boolean {
+    if (this.paused || this.phase !== "deal") return false;
+    const s = this.state;
+    const ev = answerDeal(s, this.host.content, this.t, accept);
+    if (accept) emit("deal.accept");
+    else emit("ui.confirm");
+    this.consume(ev, false);
+    this.host.persist(s);
+    if (s.over) { this.toOver(); return true; }
+    this.shownWheel = s.wheel!;
+    this.shownCur = structuredClone(s.cur);
+    this.shownReq = currentRequest(s, this.host.content);
+    this.phase = "spin";
+    this.spinStart = this.clock;
+    this.hold = 0.35;
+    this.enterT = 0;
+    return true;
+  }
+
+  courtStage(): 0 | 1 | 2 | 3 {
+    return courtStage(this.state, this.t);
   }
 
   private lock(frac: number, intent?: "yes" | "no"): void {
@@ -183,6 +217,11 @@ export class Run {
         this.omenBanner = 1.4;
       } else if (e.t === "day.end") {
         emit("day.end");
+      } else if (e.t === "expose") {
+        if (e.delta > 0) { emit("expose.up"); this.exposeFlash = 1.2; }
+      } else if (e.t === "vow") {
+        if (e.result === "kept") { emit("vow.kept"); this.vowFlash = 1.2; }
+        else if (e.result === "broken") { emit("vow.broken"); this.vowFlash = 1.2; }
       } else if (e.t === "reign.win") {
         emit("reign.win");
       } else if (e.t === "reign.lose") {
@@ -238,6 +277,8 @@ export class Run {
     this.needle *= Math.pow(0.001, dt);
     if (this.omenBanner > 0) this.omenBanner -= dt;
     if (this.landed > 0) this.landed -= dt;
+    if (this.exposeFlash > 0) this.exposeFlash -= dt;
+    if (this.vowFlash > 0) this.vowFlash -= dt;
     for (const k of ["p", "h", "g"] as StatKey[]) {
       const target = this.state[k];
       const cur = this.view.shown[k];
@@ -271,7 +312,7 @@ export class Run {
   }
 
   wheelGeom(): { cx: number; cy: number; r: number } {
-    const r = 150 + Math.min(28, Math.max(0, H - 960) * 0.14);
+    const r = 142 + Math.min(28, Math.max(0, H - 960) * 0.14);
     return { cx: W / 2, cy: H - 60 - stage.safeB - r, r };
   }
 
@@ -279,6 +320,10 @@ export class Run {
   items(): Item[] {
     const T = this.layoutTop();
     const list: Item[] = [{ id: "pause", x: 18, y: T, w: 56, h: 56, aria: "pause", icon: "pause" }];
+    if (this.phase === "deal") {
+      list.push({ id: "no", x: 280, y: 700, w: 200, h: 130, aria: "refuse the deal", icon: "x" });
+      list.push({ id: "yes", x: 60, y: 700, w: 200, h: 130, aria: "accept the deal", icon: "check" });
+    }
     if (this.host.intentLock() && this.phase === "spin") {
       const g = this.wheelGeom();
       list.push({ id: "yes", x: 14, y: g.cy + g.r - 96, w: 96, h: 96, aria: "yes", icon: "check" });
@@ -301,10 +346,15 @@ export class Run {
       ctx.translate((Math.random() - 0.5) * this.shakeAmp, (Math.random() - 0.5) * this.shakeAmp);
     }
 
-    // top row: pause, day, omen
+    // top row: pause, day (or tutorial day), omen
     drawItemButton(ctx, this.items()[0]!, focusId === "pause", hc);
-    drawIcon(ctx, mode === "endless" ? "infinity" : "calendar", 118, T + 28, 34, { color: PAL.white, lw: 2.4 });
-    text(ctx, mode === "endless" ? String(s.day) : `${s.day}/${t.days}`, 168 + (mode === "endless" ? 0 : 10), T + 29, 34, { color: PAL.white, stroke: PAL.ink, align: "left" });
+    if (s.tut) {
+      drawIcon(ctx, "book", 118, T + 28, 34, { color: PAL.white, lw: 2.4 });
+      text(ctx, `${s.tut}/3`, 178, T + 29, 34, { color: PAL.white, stroke: PAL.ink, align: "left" });
+    } else {
+      drawIcon(ctx, mode === "endless" ? "infinity" : "calendar", 118, T + 28, 34, { color: PAL.white, lw: 2.4 });
+      text(ctx, mode === "endless" ? String(s.day) : `${s.day}/${t.days}`, 168 + (mode === "endless" ? 0 : 10), T + 29, 34, { color: PAL.white, stroke: PAL.ink, align: "left" });
+    }
     if (s.omen) {
       const om = c.omens.get(s.omen)!;
       drawPanel(ctx, W - 96, T - 2, 78, 60, { fill: "#d8c4f0", seed: 5, lw: 3 });
@@ -314,11 +364,15 @@ export class Run {
     drawGauges(ctx, T + 62, s, t, this.view, time, hc);
     drawCalendar(ctx, T + 134, s, this.landed);
 
-    // petitioner panel
+    // the Deceiver's strip: his advice, exposure pips and the court's marks
+    const sy = T + 198, stg = courtStage(s, t);
+    this.drawAdviceStrip(ctx, sy, stg, time, hc);
+
+    // petitioner panel, spot-lit like a stage
     const extra = Math.max(0, H - 960);
-    const py = T + 200, ph = 330 + extra * 0.5;
+    const py = sy + 74, ph = 290 + extra * 0.5;
     drawPanel(ctx, 20, py, W - 40, ph, { seed: 21, lw: hc ? 5 : 3.5 });
-    drawQueue(ctx, py + 24, this.phase === "lock" || this.phase === "dayend" || this.phase === "over" ? this.shownSlot + 1 : this.shownSlot, t.perDay!);
+    drawQueue(ctx, py + 22, this.phase === "lock" || this.phase === "dayend" || this.phase === "over" ? this.shownSlot + 1 : this.shownSlot, s.queue.length);
 
     const enterK = Math.min(1, this.enterT / ENTER);
     const ease = 1 - Math.pow(1 - enterK, 3);
@@ -328,24 +382,49 @@ export class Run {
     ctx.save();
     ctx.globalAlpha = alpha;
     const bob = this.host.reducedMotion() ? 0 : Math.sin(time * 2.2) * 5;
-    visual(`petitioner.${arch.id}`)(ctx, 150 + slide, py + 162, 236, 236, { bob });
+    const portraitKey = req.forced ? "deceiver.advisor" : `petitioner.${arch.id}`;
+    visual(portraitKey)(ctx, 140 + slide, py + 150, 206, 206, { bob, stage: stg });
     // ask pictogram bubble
-    const bx = 292 + slide * 0.6, by = py + 64, bw = 216, bh = 150 + extra * 0.1;
+    const bx = 262 + slide * 0.6, by = py + 56, bw = 236, bh = 130 + extra * 0.1;
     drawPanel(ctx, bx, by, bw, bh, { fill: "#f6ecd0", seed: 41, lw: 3 });
     const n = req.ask.length;
-    const iconSize = n === 1 ? 92 : n === 2 ? 74 : 56;
+    const iconSize = n === 1 ? 84 : n === 2 ? 68 : 52;
     req.ask.forEach((id, i) => {
       const ix = bx + bw / 2 + (i - (n - 1) / 2) * (iconSize + 10);
       drawIcon(ctx, id, ix, by + bh / 2, iconSize, { color: PAL.ink, lw: 2.2 });
     });
-    if (req.line) text(ctx, req.line, 20 + (W - 40) / 2 + slide * 0.3, py + ph - 28, 27, { color: PAL.ink, weight: "bold" });
+    if (req.vow) {
+      const def = c.vows.get(req.vow)!;
+      drawPanel(ctx, bx, by + bh + 8, bw, 44, { fill: "#e6d2a0", seed: 43, lw: 3 });
+      drawIcon(ctx, FACTION_ICON[def.faction], bx + 28, by + bh + 30, 28, { color: PAL.ink });
+      drawIcon(ctx, "oath", bx + 66, by + bh + 30, 28, { color: PAL.goldDark });
+      def.icons.forEach((id, i) => drawIcon(ctx, id, bx + 118 + i * 38, by + bh + 30, 28, { color: PAL.ink }));
+    }
+    if (req.line) text(ctx, req.line, 20 + (W - 40) / 2 + slide * 0.3, py + ph - 26, 26, { color: PAL.ink, weight: "bold" });
+    // the tell: one visible hint about the petitioner
+    const tell = this.shownCur.tell;
+    if (tell) {
+      const pulse = s.tut === 2 ? (Math.sin(time * 5) + 1) / 2 : 0;
+      ctx.beginPath(); ctx.arc(226 + slide, py + 62, 30 + pulse * 5, 0, Math.PI * 2);
+      ctx.fillStyle = "#f6ecd0"; ctx.fill();
+      ctx.lineWidth = 4; ctx.strokeStyle = pulse > 0 ? PAL.gold : PAL.ink; ctx.stroke();
+      drawIcon(ctx, tell, 226 + slide, py + 62, 38, { color: PAL.ink, lw: 2.4 });
+    }
     ctx.restore();
+
+    // stage lighting: the court darkens behind the speaker, the wheel stays high-contrast
+    const spot = ctx.createRadialGradient(W / 2, py + ph / 2, 120, W / 2, py + ph / 2, 420);
+    spot.addColorStop(0, "rgba(0,0,0,0)");
+    spot.addColorStop(1, `rgba(4,2,8,${0.18 + stg * 0.1})`);
+    ctx.save(); ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1; ctx.fillStyle = spot;
+    ctx.fillRect(0, 0, W, py - 4); ctx.restore();
 
     // wheel
     const g = this.wheelGeom();
     const wheel = this.shownWheel;
     let frac: number;
     if (this.phase === "spin") frac = pointerAt(wheel, Math.max(0, this.clock - this.spinStart));
+    else if (this.phase === "deal") frac = wheel.phase;
     else frac = this.lockFrac;
     const day = s.day;
     const telegraph = Math.max(0.15, 1 - Math.min(1, (day - 1) / 22));
@@ -357,8 +436,9 @@ export class Run {
       lockAge: this.lockT, needle: this.needle, highContrast: hc, time, dim: omenDim
     });
 
-    // first-run affordance: pulsing tap hint, icon only
-    if (this.host.firstRun() && s.day === 1 && s.slot < 2 && this.phase === "spin" && this.hold <= 0 && !this.host.intentLock()) {
+    // first-run affordance: pulsing tap hint on the first wheel, icon only
+    const tapHint = (this.host.firstRun() && s.day === 1 && s.slot < 2) || s.tut === 1;
+    if (tapHint && this.phase === "spin" && this.hold <= 0 && !this.host.intentLock()) {
       const k = (Math.sin(time * 4) + 1) / 2;
       ctx.save();
       ctx.globalAlpha = 0.9;
@@ -369,7 +449,7 @@ export class Run {
     }
 
     // intent buttons
-    for (const it of this.items().slice(1)) drawItemButton(ctx, it, focusId === it.id, hc);
+    for (const it of this.items().slice(1)) if (this.phase !== "deal") drawItemButton(ctx, it, focusId === it.id, hc);
 
     drawPopups(ctx, T + 62, this.popups);
 
@@ -390,7 +470,62 @@ export class Run {
       ctx.restore();
     }
 
+    if (this.phase === "deal") this.drawDeal(ctx, time, focusId, stg, hc);
     if (this.phase === "dayend") this.drawDayEnd(ctx, time);
+  }
+
+  private drawAdviceStrip(ctx: Ctx, y: number, stg: number, time: number, hc: boolean): void {
+    const s = this.state, t = this.t;
+    drawPanel(ctx, 20, y, W - 40, 66, { fill: "#d8c79c", seed: 51, lw: hc ? 5 : 3 });
+    ctx.save();
+    ctx.beginPath(); ctx.rect(24, y + 4, 90, 58); ctx.clip();
+    visual("deceiver.advisor")(ctx, 70, y + 59, 150, 150, { stage: stg });
+    ctx.restore();
+    const adv = this.shownCur.advice;
+    const pulse = s.tut === 3 ? (Math.sin(time * 5) + 1) / 2 : 0;
+    if (adv) {
+      ctx.beginPath(); ctx.arc(142, y + 28, 20 + pulse * 3, 0, Math.PI * 2);
+      ctx.fillStyle = "#f6ecd0"; ctx.fill(); ctx.lineWidth = 3.5; ctx.strokeStyle = pulse > 0 ? PAL.gold : PAL.ink; ctx.stroke();
+      drawIcon(ctx, adv.ruling === "yes" ? "check" : "x", 142, y + 28, 24, { color: adv.ruling === "yes" ? "#3f7a34" : "#8a3a2e", lw: 3.4 });
+      const lines = this.host.content.deceiver.advice[adv.ruling];
+      text(ctx, lines[this.shownLine % lines.length]!, 176, y + 28, 22, { color: PAL.ink, align: "left" });
+    } else {
+      text(ctx, "…", 150, y + 28, 30, { color: "#6a5a3a", align: "left" });
+    }
+    // exposure pips (blades) and marks; usurpation itself is never shown, only the court's rot
+    const limit = t.exposeLimit!;
+    for (let i = 0; i < limit; i++) {
+      const filled = i < s.expose;
+      const flash = this.exposeFlash > 0 && i === s.expose - 1 ? 4 : 0;
+      drawIcon(ctx, "blade", 150 + i * 24, y + 53, 18 + flash, { color: filled ? "#8a2f1e" : "rgba(42,29,20,0.3)", lw: 1.6 });
+    }
+    s.marks.slice(0, 3).forEach((m, i) => {
+      const x = W - 70 - i * 34;
+      drawIcon(ctx, FACTION_ICON[m.faction], x, y + 49, 22, { color: PAL.ink, lw: 2 });
+      drawIcon(ctx, "crack", x + 11, y + 56, 14, { color: "#8a2f1e", lw: 2 });
+    });
+    if (this.vowFlash > 0) {
+      ctx.strokeStyle = PAL.gold; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.roundRect(18, y - 2, W - 36, 70, 8); ctx.stroke();
+    }
+  }
+
+  private drawDeal(ctx: Ctx, time: number, focusId: string | null, stg: number, hc: boolean): void {
+    const s = this.state, c = this.host.content;
+    const deal = c.deals.get(s.dealOffer!)!;
+    ctx.fillStyle = PAL.dim;
+    ctx.fillRect(0, 0, W, H);
+    drawPanel(ctx, 40, 150, W - 80, 700, { seed: 88, lw: 4 });
+    visual("deceiver.advisor")(ctx, W / 2, 360, 300, 300, { stage: stg, bob: this.host.reducedMotion() ? 0 : Math.sin(time * 2) * 4 });
+    const offer = c.deceiver.offer;
+    text(ctx, offer[(s.day + s.dealsTaken) % offer.length]!, W / 2, 536, 28, { color: PAL.ink });
+    drawPanel(ctx, W / 2 - 80, 566, 160, 110, { fill: "#f6ecd0", seed: 89, lw: 3 });
+    drawIcon(ctx, deal.icon, W / 2, 621, 80, { color: PAL.ink, lw: 2.4 });
+    for (const it of this.items().slice(1)) {
+      const f = focusId === it.id;
+      drawPanel(ctx, it.x, it.y, it.w, it.h, { fill: f ? "#f6e6b8" : PAL.parchment, seed: it.id.length * 5, lw: f ? (hc ? 8 : 6) : 3, edge: f ? PAL.gold : PAL.ink });
+      drawIcon(ctx, it.icon!, it.x + it.w / 2, it.y + it.h / 2, 70, { color: it.id === "yes" ? "#3f7a34" : "#8a3a2e", lw: 3.6 });
+    }
   }
 
   private drawDayEnd(ctx: Ctx, time: number): void {
@@ -400,8 +535,8 @@ export class Run {
     const top = 130 + Math.round(Math.max(0, H - 960) * 0.25);
     drawPanel(ctx, 40, top, W - 80, 640, { seed: 77, lw: 4 });
     visual("ruler.king")(ctx, W / 2, top + 110, 190, 190);
-    drawIcon(ctx, "calendar", W / 2 - 54, top + 232, 40, { color: PAL.ink });
-    text(ctx, `${s.day}`, W / 2 + 6, top + 234, 44, { align: "left" });
+    drawIcon(ctx, s.tut ? "book" : "calendar", W / 2 - 54, top + 232, 40, { color: PAL.ink });
+    text(ctx, s.tut ? `${s.tut}/3` : `${s.day}`, W / 2 + 6, top + 234, 44, { align: "left" });
     // tick lines: icon, then the stat change chips
     let y = top + 282;
     for (const line of this.dayLines) {

@@ -131,6 +131,7 @@ export interface DeceiverData {
   advice: { yes: string[]; no: string[] };
   greeting: string;
   caught: string[];
+  offer: string[];
   tutorial: TutorialDay[];
 }
 

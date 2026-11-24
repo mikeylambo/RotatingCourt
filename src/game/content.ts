@@ -91,7 +91,7 @@ export function loadContent(): Content {
   const meta = metaJson as unknown as { achievements: AchievementDef[]; challenges: ChallengeDef[] };
   return {
     tells, vows, vowOrder: [...vows.keys()], deals, dealOrder: [...deals.keys()],
-    deceiver: { hurts: dj.hurts, advice: dj.advice, greeting: dj.greeting, caught: dj.caught, tutorial: dj.tutorial },
+    deceiver: { hurts: dj.hurts, advice: dj.advice, greeting: dj.greeting, caught: dj.caught, offer: dj.offer, tutorial: dj.tutorial },
     archetypes, archetypeOrder, requests, arcs, omens, omenOrder, hazards, achievements: meta.achievements, challenges: meta.challenges };
 }
 
@@ -126,7 +126,7 @@ export function validateContent(c: Content): string[] {
     if (!r.tell || !c.tells.has(r.tell)) issues.push(`${r.id}: missing tell`);
     else if ((c.tells.get(r.tell)!.signal === "truth") !== r.truth) issues.push(`${r.id}: tell contradicts its truth flag`);
   }
-  for (const l of [...c.deceiver.advice.yes, ...c.deceiver.advice.no, c.deceiver.greeting, ...c.deceiver.caught]) if (l.split(/\s+/).length > 5) issues.push(`deceiver line too long: ${l}`);
+  for (const l of [...c.deceiver.advice.yes, ...c.deceiver.advice.no, c.deceiver.greeting, ...c.deceiver.caught, ...c.deceiver.offer]) if (l.split(/\s+/).length > 5) issues.push(`deceiver line too long: ${l}`);
   const hazardKinds = new Set<string>();
   for (const h of c.hazards.values()) hazardKinds.add(`${h.pattern}|${h.icon}`);
   if (hazardKinds.size !== c.hazards.size) issues.push("hazard patterns/icons are not unique");

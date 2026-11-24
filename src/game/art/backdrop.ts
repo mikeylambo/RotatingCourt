@@ -95,69 +95,86 @@ export function drawVignette(ctx: Ctx, w: number, h: number): void {
   ctx.fillRect(0, 0, w, h);
 }
 
-let backdropCache: { w: number; h: number; c: HTMLCanvasElement } | null = null;
+const backdropCache = new Map<string, HTMLCanvasElement>();
 
-/** Throne-room wall, floor and torch glow, rendered once per canvas size. */
-export function drawCourtBackdrop(ctx: Ctx, w: number, h: number): void {
-  if (!backdropCache || backdropCache.w !== w || backdropCache.h !== h) {
-    const c = document.createElement("canvas");
+interface Look { top: string; mid: string; bot: string; floorA: string; floorB: string; arch: string; col: string; glow: string; glowA: number; }
+const LOOKS: Look[] = [
+  { top: "#85766a", mid: "#9a8a78", bot: "#6a5c52", floorA: "#6f6155", floorB: "#3c322d", arch: "rgba(30,20,12,0.28)", col: "#b8a88c", glow: "255,196,110", glowA: 0.42 },
+  { top: "#6d6866", mid: "#7d7774", bot: "#58534f", floorA: "#58524e", floorB: "#2f2b29", arch: "rgba(20,16,14,0.34)", col: "#8f8982", glow: "235,190,130", glowA: 0.26 },
+  { top: "#403e40", mid: "#4a484b", bot: "#302e31", floorA: "#3b393b", floorB: "#1b1a1c", arch: "rgba(8,6,10,0.5)", col: "#605d60", glow: "210,170,120", glowA: 0.12 },
+  { top: "#141216", mid: "#1c191f", bot: "#0b090d", floorA: "#1a171c", floorB: "#08060a", arch: "rgba(0,0,0,0.6)", col: "#2c2830", glow: "127,212,224", glowA: 0.16 }
+];
+
+/** Throne-room wall, floor, banners and torch glow. `stage` is the court's rot (0 sworn .. 3 usurped); it only ever changes the frame. */
+export function drawCourtBackdrop(ctx: Ctx, w: number, h: number, stage = 0): void {
+  const key = `${Math.round(w)}x${Math.round(h)}:${stage}`;
+  let c = backdropCache.get(key);
+  if (!c) {
+    if (backdropCache.size > 8) backdropCache.clear();
+    c = document.createElement("canvas");
     c.width = Math.max(1, Math.round(w));
     c.height = Math.max(1, Math.round(h));
-    const g = c.getContext("2d")!;
-    const wall = g.createLinearGradient(0, 0, 0, h);
-    wall.addColorStop(0, "#2a1e36");
-    wall.addColorStop(0.55, "#3a2a40");
-    wall.addColorStop(1, "#22172b");
-    g.fillStyle = wall;
-    g.fillRect(0, 0, w, h);
-    // arches
-    const aw = Math.max(180, Math.min(260, w / 2));
-    g.lineWidth = 6;
-    for (let x = -aw / 2; x < w + aw; x += aw) {
-      g.fillStyle = "rgba(10,6,16,0.35)";
-      g.beginPath();
-      g.moveTo(x + 20, h * 0.62);
-      g.lineTo(x + 20, h * 0.28);
-      g.arc(x + aw / 2, h * 0.28, aw / 2 - 20, Math.PI, 0);
-      g.lineTo(x + aw - 20, h * 0.62);
-      g.closePath();
-      g.fill();
-      g.strokeStyle = "rgba(0,0,0,0.5)";
-      g.stroke();
-      // column
-      g.fillStyle = "#4a3a52";
-      g.fillRect(x - 8, 0, 16, h * 0.66);
-    }
-    // floor tiles
-    const floorY = h * 0.66;
-    const fl = g.createLinearGradient(0, floorY, 0, h);
-    fl.addColorStop(0, "#3d2d3f");
-    fl.addColorStop(1, "#1a1020");
-    g.fillStyle = fl;
-    g.fillRect(0, floorY, w, h - floorY);
-    g.strokeStyle = "rgba(0,0,0,0.35)";
-    g.lineWidth = 2;
-    for (let i = 0; i < 9; i++) {
-      const y = floorY + Math.pow(i / 8, 1.7) * (h - floorY);
-      g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
-    }
-    for (let i = -8; i <= 8; i++) {
-      g.beginPath(); g.moveTo(w / 2 + i * 26, floorY); g.lineTo(w / 2 + i * 120, h); g.stroke();
-    }
-    // torch glow
-    for (const tx of [w * 0.1, w * 0.9]) {
-      const gl = g.createRadialGradient(tx, h * 0.3, 4, tx, h * 0.3, 190);
-      gl.addColorStop(0, "rgba(255,170,70,0.38)");
-      gl.addColorStop(1, "rgba(255,170,70,0)");
-      g.fillStyle = gl;
-      g.fillRect(tx - 200, h * 0.3 - 200, 400, 400);
-    }
-    // stone grain
-    g.globalCompositeOperation = "overlay";
-    g.globalAlpha = 0.22;
-    g.fillStyle = g.createPattern(grain(), "repeat")!;
-    g.fillRect(0, 0, w, h);
-    backdropCache = { w, h, c };
+    paintCourt(c.getContext("2d")!, w, h, stage, LOOKS[stage]!);
+    backdropCache.set(key, c);
   }
-  ctx.drawImage(backdropCache.c, 0, 0);
+  ctx.drawImage(c, 0, 0);
+}
+
+function paintCourt(g: Ctx, w: number, h: number, stage: number, L: Look): void {
+  const wall = g.createLinearGradient(0, 0, 0, h);
+  wall.addColorStop(0, L.top); wall.addColorStop(0.55, L.mid); wall.addColorStop(1, L.bot);
+  g.fillStyle = wall; g.fillRect(0, 0, w, h);
+  const floorY = h * 0.66;
+  const aw = Math.max(180, Math.min(260, w / 2));
+  g.lineWidth = 6;
+  const rnd = lcg(31 + stage);
+  for (let x = -aw / 2; x < w + aw; x += aw) {
+    g.fillStyle = L.arch;
+    g.beginPath(); g.moveTo(x + 20, floorY); g.lineTo(x + 20, h * 0.28); g.arc(x + aw / 2, h * 0.28, aw / 2 - 20, Math.PI, 0); g.lineTo(x + aw - 20, floorY); g.closePath(); g.fill();
+    g.strokeStyle = "rgba(0,0,0,0.45)"; g.stroke();
+    g.fillStyle = L.col; g.fillRect(x - 8, 0, 16, floorY);
+    // banners: full and ivory/gold at 0, shorter and frayed at 1, torn strips at 2, blade-black at 3
+    const bw = 44, bx = x + aw / 2 - bw / 2;
+    const bh = [h * 0.26, h * 0.2, h * 0.11, h * 0.24][stage]!;
+    const by = h * 0.06;
+    g.fillStyle = ["#d9d0b8", "#a8a090", "#5a5658", "#0b090d"][stage]!;
+    g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + bw, by); g.lineTo(bx + bw, by + bh);
+    if (stage === 0) { g.lineTo(bx + bw / 2, by + bh - 18); g.lineTo(bx, by + bh); }
+    else { for (let i = 0; i < 4; i++) { g.lineTo(bx + bw - (i + 1) * (bw / 4), by + bh - 6 - rnd() * (stage === 1 ? 14 : 30)); } g.lineTo(bx, by + bh); }
+    g.closePath(); g.fill(); g.lineWidth = 3; g.strokeStyle = "rgba(0,0,0,0.5)"; g.stroke();
+    // emblem: gold crown bar early, blade motif late
+    if (stage === 3) { g.fillStyle = "#7a1620"; g.beginPath(); g.moveTo(bx + bw / 2, by + 10); g.lineTo(bx + bw / 2 + 9, by + bh * 0.55); g.lineTo(bx + bw / 2, by + bh * 0.9); g.lineTo(bx + bw / 2 - 9, by + bh * 0.55); g.closePath(); g.fill(); }
+    else if (stage < 2) { g.fillStyle = stage === 0 ? "#c9a032" : "#8a7a55"; g.fillRect(bx + 8, by + 14, bw - 16, 8); }
+    // hollowed: empty weapon racks and cracks
+    if (stage >= 2) {
+      g.strokeStyle = "rgba(0,0,0,0.55)"; g.lineWidth = 3;
+      g.beginPath(); g.moveTo(x + aw * 0.12, h * 0.46); g.lineTo(x + aw * 0.12, h * 0.56); g.moveTo(x + aw * 0.06, h * 0.5); g.lineTo(x + aw * 0.18, h * 0.5); g.stroke();
+      g.beginPath(); g.moveTo(x + aw * 0.7, h * 0.12); for (let i = 0; i < 5; i++) g.lineTo(x + aw * (0.7 + (rnd() - 0.5) * 0.12), h * (0.12 + i * 0.1)); g.stroke();
+    }
+  }
+  const fl = g.createLinearGradient(0, floorY, 0, h);
+  fl.addColorStop(0, L.floorA); fl.addColorStop(1, L.floorB);
+  g.fillStyle = fl; g.fillRect(0, floorY, w, h - floorY);
+  g.strokeStyle = "rgba(0,0,0,0.35)"; g.lineWidth = 2;
+  for (let i = 0; i < 9; i++) { const y = floorY + Math.pow(i / 8, 1.7) * (h - floorY); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+  for (let i = -8; i <= 8; i++) { g.beginPath(); g.moveTo(w / 2 + i * 26, floorY); g.lineTo(w / 2 + i * 120, h); g.stroke(); }
+  // usurped: the throne wrapped in blades, far back on the floor line
+  if (stage === 3) {
+    g.fillStyle = "#050407"; g.beginPath(); g.moveTo(w / 2 - 60, floorY); g.lineTo(w / 2 - 44, floorY - 150); g.lineTo(w / 2 + 44, floorY - 150); g.lineTo(w / 2 + 60, floorY); g.closePath(); g.fill();
+    g.fillStyle = "#7a1620";
+    for (let i = -3; i <= 3; i++) { g.beginPath(); g.moveTo(w / 2 + i * 16, floorY - 150); g.lineTo(w / 2 + i * 16 + 6, floorY - 60); g.lineTo(w / 2 + i * 16, floorY - 4); g.lineTo(w / 2 + i * 16 - 6, floorY - 60); g.closePath(); g.fill(); }
+  }
+  for (const tx of [w * 0.1, w * 0.9]) {
+    const gl = g.createRadialGradient(tx, h * 0.3, 4, tx, h * 0.3, 190);
+    gl.addColorStop(0, `rgba(${L.glow},${L.glowA})`); gl.addColorStop(1, `rgba(${L.glow},0)`);
+    g.fillStyle = gl; g.fillRect(tx - 200, h * 0.3 - 200, 400, 400);
+  }
+  // long shadows once hollowed
+  if (stage >= 2) {
+    const sh = g.createLinearGradient(0, 0, w, 0);
+    sh.addColorStop(0, "rgba(0,0,0,0.55)"); sh.addColorStop(0.5, "rgba(0,0,0,0)"); sh.addColorStop(1, "rgba(0,0,0,0.55)");
+    g.fillStyle = sh; g.fillRect(0, 0, w, h);
+  }
+  g.globalCompositeOperation = "overlay"; g.globalAlpha = 0.22;
+  g.fillStyle = g.createPattern(grain(), "repeat")!; g.fillRect(0, 0, w, h);
 }

@@ -10,16 +10,17 @@ import { drawIcon } from "./art/icons";
 import { drawPanel, drawVignette } from "./art/backdrop";
 import { visual } from "./art/visuals";
 import { audio, emit } from "./audio/synth";
-import { createRun, daysSurvived, finalScore, tuningFor } from "./engine";
+import { courtStage, createRun, daysSurvived, finalScore, tuningFor } from "./engine";
 import { type Profile, type ProfileStore } from "./profile";
 import { Run, drawItemButton, type RunHost } from "./run";
 import type { GameSettings } from "./settings";
 import { A11yMirror, H, PAL, W, drawItem, hit, layoutStage, stage, text, toLogical, view, type Item } from "./ui/kit";
 import { drawWheel } from "./render/wheel";
 import { STAT_ICON } from "./render/hud";
-import type { ChallengeDef, Content, Ev, GameState, Mode, StatKey, Tuning, Wheel } from "./types";
+import { FACTION_ICON } from "./types";
+import type { ChallengeDef, Content, Ending, Ev, GameState, Mode, StatKey, Tuning, Wheel } from "./types";
 
-export type ScreenId = "title" | "menu" | "challenges" | "profile" | "settings" | "play" | "results";
+export type ScreenId = "title" | "menu" | "vows" | "challenges" | "profile" | "settings" | "play" | "results";
 
 export interface Services {
   canvas: HTMLCanvasElement;
@@ -45,6 +46,9 @@ interface ResultsView {
   medal: string | null;
   unlocked: string[];
   assisted: boolean;
+  ending: Ending | null;
+  caught: number;
+  marks: number;
 }
 
 const BINDINGS: InputBinding[] = [
@@ -95,6 +99,11 @@ export class CourtApp {
   private shakeDeny = 0;
   /** Menu row to re-focus when returning from a sub-screen. */
   private menuFocus: string | null = null;
+  /** Vow Night: the run being set up and the vows picked so far. */
+  private pending: { mode: Mode; challenge: ChallengeDef | null } = { mode: "reign", challenge: null };
+  private vowPick: string[] = [];
+  private lastVows: string[] | null = null;
+  private lastStage: 0 | 1 | 2 | 3 = 0;
   private ctx: CanvasRenderingContext2D;
   private platform = new BrowserPlatform();
 
@@ -104,7 +113,7 @@ export class CourtApp {
     this.mirror = new A11yMirror(document.body);
     this.mirror.onFocusId = (id) => { if (this.focusId !== id) this.focusId = id; };
     sv.shell.input.setBindings(BINDINGS);
-    this.screens.register((["title", "menu", "challenges", "profile", "settings", "play", "results"] as ScreenId[]).map((id) => ({
+    this.screens.register((["title", "menu", "vows", "challenges", "profile", "settings", "play", "results"] as ScreenId[]).map((id) => ({
       id,
       enter: () => { this.screen = id; this.rebuild(); }
     })));
@@ -243,7 +252,8 @@ export class CourtApp {
         { id: "restart", icon: "retry", label: "", aria: "restart" },
         { id: "settings", icon: "gear", label: "", aria: "settings" },
         { id: "quit", icon: "home", label: "", aria: "quit to menu" }
-      ].map((d, i) => ({ x: W / 2 - 156 + (i % 2) * 168, y: 360 + Math.floor(i / 2) * 168, w: 144, h: 144, ...d, draw: (ctx, it, f) => this.drawBigButton(ctx, it, f) }));
+      ].concat(this.run?.state.tut ? [{ id: "skip", icon: "skip", label: "", aria: "skip the tutorial" }] : [])
+        .map((d, i) => ({ x: W / 2 - 156 + (i % 2) * 168, y: 360 + Math.floor(i / 2) * 168, w: 144, h: 144, ...d, draw: (ctx, it, f) => this.drawBigButton(ctx, it, f) }));
       this.setItems(items, "resume");
       return;
     }
@@ -256,13 +266,25 @@ export class CourtApp {
         const list: Array<Partial<Item> & { id: string; aria: string }> = [];
         if (p.activeRun) list.push({ id: "continue", icon: "play", label: "Continue", aria: "continue reign" });
         list.push({ id: "reign", icon: "crown", label: "Reign", aria: "reign, 25 days", big: true });
-        list.push({ id: "daily", icon: "calendar", label: "Daily", aria: "daily reign" });
         list.push({ id: "endless", icon: "infinity", label: "Endless", aria: "endless", locked: !unlocks.has("endless") });
         list.push({ id: "challenges", icon: "trophy", label: "Trials", aria: "trials" });
         list.push({ id: "profile", icon: "star", label: "Records", aria: "records" });
         list.push({ id: "settings", icon: "gear", label: "Settings", aria: "settings" });
         const top = 304 - Math.max(0, list.length - 6) * 20;
         items = list.map((d, i) => mk(d, i, top, 68, 440));
+        break;
+      }
+      case "vows": {
+        const defs = this.sv.content.vowOrder.map((id) => this.sv.content.vows.get(id)!);
+        const cw = 232, chh = 118;
+        items = [back, ...defs.map((v, i) => ({
+          id: v.id, aria: `${v.faction}: ${v.line}`, x: 25 + (i % 2) * (cw + 26), y: 270 + Math.floor(i / 2) * (chh + 14), w: cw, h: chh,
+          draw: (ctx: CanvasRenderingContext2D, it: Item, f: boolean) => this.drawVowCard(ctx, it, f, v.id)
+        }))];
+        items.push({ id: "confirm", aria: "swear the vows", x: W / 2 + 20, y: 270 + 4 * (chh + 14) + 8, w: 200, h: 84, icon: "oath", disabled: this.vowPick.length < 3,
+          draw: (ctx: CanvasRenderingContext2D, it: Item, f: boolean) => this.drawBigButton(ctx, it, f) });
+        if (!p.tutorialDone) items.push({ id: "skip", aria: "skip the tutorial", x: W / 2 - 220, y: 270 + 4 * (chh + 14) + 8, w: 200, h: 84, icon: "skip",
+          draw: (ctx: CanvasRenderingContext2D, it: Item, f: boolean) => this.drawBigButton(ctx, it, f) });
         break;
       }
       case "challenges": {
@@ -353,7 +375,8 @@ export class CourtApp {
   private back(): void {
     if (this.pauseOpen && this.screen === "play") { this.resume(); return; }
     if (this.screen === "settings" && this.settingsFrom === "pause") { this.screen = "play"; this.pauseOpen = true; this.focusId = "settings"; this.rebuild(); return; }
-    if (this.screen === "challenges" || this.screen === "profile" || this.screen === "settings") this.goto("menu");
+    if (this.screen === "vows") this.goto(this.pending.challenge ? "challenges" : "menu");
+    else if (this.screen === "challenges" || this.screen === "profile" || this.screen === "settings") this.goto("menu");
     else if (this.screen === "results") this.goto("menu");
   }
 
@@ -366,8 +389,9 @@ export class CourtApp {
     if (this.screen === "title") { this.goto("menu"); return; }
     if (this.pauseOpen && this.screen === "play") {
       if (id === "resume") this.resume();
-      else if (id === "restart") { this.discardActive(); this.pauseOpen = false; this.startRun(this.currentMode, this.currentChallenge); }
+      else if (id === "restart") { this.discardActive(); this.pauseOpen = false; this.startRun(this.currentMode, this.currentChallenge, this.lastVows ?? undefined, false); }
       else if (id === "settings") { this.settingsFrom = "pause"; this.pauseOpen = false; this.screen = "settings"; this.focusId = null; this.rebuild(); }
+      else if (id === "skip") { this.sv.store.profile.tutorialDone = true; this.sv.store.save(); this.discardActive(); this.pauseOpen = false; this.startRun(this.currentMode, this.currentChallenge, this.lastVows ?? undefined); }
       else if (id === "quit") { this.pauseOpen = false; this.sv.shell.quit(); this.run = null; this.goto("menu"); }
       return;
     }
@@ -375,21 +399,32 @@ export class CourtApp {
       case "menu":
         this.menuFocus = id;
         if (id === "continue") this.continueRun();
-        else if (id === "reign") this.startRun("reign", null);
-        else if (id === "daily") this.startRun("daily", null);
-        else if (id === "endless") this.startRun("endless", null);
+        else if (id === "reign") this.openVows("reign", null);
+        else if (id === "endless") this.openVows("endless", null);
         else if (id === "challenges") this.goto("challenges");
         else if (id === "profile") this.goto("profile");
         else if (id === "settings") { this.settingsFrom = "menu"; this.goto("settings"); }
         break;
       case "challenges":
         if (id === "back") this.back();
-        else { const c = this.sv.content.challenges.find((x) => x.id === id); if (c) this.startRun("reign", c); }
+        else { const c = this.sv.content.challenges.find((x) => x.id === id); if (c) this.openVows("reign", c); }
+        break;
+      case "vows":
+        if (id === "back") this.back();
+        else if (id === "skip") { this.sv.store.profile.tutorialDone = true; this.sv.store.save(); this.rebuild(); }
+        else if (id === "confirm") { if (this.vowPick.length === 3) this.startRun(this.pending.mode, this.pending.challenge, [...this.vowPick]); }
+        else {
+          const at = this.vowPick.indexOf(id);
+          if (at >= 0) this.vowPick.splice(at, 1);
+          else if (this.vowPick.length < 3) this.vowPick.push(id);
+          emit("vow.kept");
+          this.rebuild();
+        }
         break;
       case "profile": if (id === "back") this.back(); break;
       case "settings": if (id === "back") this.back(); else this.adjust(1, true); break;
       case "results":
-        if (id === "retry") this.startRun(this.currentMode, this.currentChallenge);
+        if (id === "retry") this.startRun(this.currentMode, this.currentChallenge, this.lastVows ?? undefined, false);
         else this.goto("menu");
         break;
     }
@@ -434,28 +469,36 @@ export class CourtApp {
     };
   }
 
-  private startRun(mode: Mode, challenge: ChallengeDef | null): void {
+  /** Night zero: choose the three vows to swear before the reign begins. */
+  private openVows(mode: Mode, challenge: ChallengeDef | null): void {
+    this.pending = { mode, challenge };
+    this.vowPick = this.lastVows ? [...this.lastVows] : [];
+    this.goto("vows");
+  }
+
+  private startRun(mode: Mode, challenge: ChallengeDef | null, vows?: string[], allowTutorial = true): void {
     const sv = this.sv;
     this.currentMode = mode;
     this.currentChallenge = challenge;
-    let seed: string;
     this.currentSeedKey = null;
-    if (mode === "daily") {
-      const sched = scheduledSeed(sv.gameId, "daily");
-      seed = `D${sched.seed}`;
-      this.currentSeedKey = sched.key;
-    } else seed = DeterministicRngRegistry.freshSeed(8);
+    this.lastVows = vows ? [...vows] : this.lastVows;
+    const seed = DeterministicRngRegistry.freshSeed(8);
     const t = tuningFor(sv.tuning(), challenge?.tuning);
-    const state = createRun(sv.content, t, { mode, seed, challenge: challenge?.id ?? null, assist: this.cfg.assist });
-    sv.shell.production.achievements.hydrate(sv.store.profile.achievements);
+    const p = sv.store.profile;
+    const tutorial = allowTutorial && !p.tutorialDone && mode === "reign" && !challenge;
+    const state = createRun(sv.content, t, {
+      mode, seed, challenge: challenge?.id ?? null, assist: this.cfg.assist, vows, tutorial, firstRun: p.runs === 0 || tutorial
+    });
+    sv.shell.production.achievements.hydrate(p.achievements);
     this.begin(state, t);
-    sv.shell.studio.telemetry.record("run.start", { mode, seed, challenge: challenge?.id ?? "none" });
-    void createRunDescriptor({ gameId: sv.gameId, version: "1.0.0", modeId: mode, seed, challengeKey: challenge?.id });
+    sv.shell.studio.telemetry.record("run.start", { mode, seed, challenge: challenge?.id ?? "none", tutorial });
+    void createRunDescriptor({ gameId: sv.gameId, version: "2.0.0", modeId: mode, seed, challengeKey: challenge?.id });
   }
 
   private continueRun(): void {
     const saved = this.sv.store.profile.activeRun;
-    if (!saved) return;
+    if (!saved || saved.v !== 2) return;
+    this.lastVows = saved.vows.map((v) => v.id);
     this.currentMode = saved.mode;
     this.currentChallenge = this.sv.content.challenges.find((c) => c.id === saved.challenge) ?? null;
     if (saved.mode === "daily") this.currentSeedKey = scheduledSeed(this.sv.gameId, "daily").key;
@@ -533,6 +576,8 @@ export class CourtApp {
     const best = mode === "endless" ? p.bestDays.endless : p.bestScore[mode];
     const newBest = key > best;
     p.runs++;
+    p.tutorialDone = true;
+    if (s.ending) p.endings[s.ending] = (p.endings[s.ending] ?? 0) + 1;
     if (win) p.wins++;
     p.bestScore[mode] = Math.max(p.bestScore[mode], score);
     p.bestDays[mode] = Math.max(p.bestDays[mode], days);
@@ -564,6 +609,10 @@ export class CourtApp {
     grant("assist-free", win && !s.assist && !s.assisted);
     grant("broke-king", win && s.g < 50);
     grant("daily", mode === "daily");
+    grant("just-king", s.ending === "just");
+    grant("marked-king", s.ending === "marked");
+    grant("hollow-king", s.ending === "hollow");
+    grant("long-reign", s.ending === "long");
     const stats = sv.shell.stats;
     void stats.increment("runs");
     if (win) void stats.increment("wins");
@@ -575,7 +624,8 @@ export class CourtApp {
     setTimeout(() => {
       p.achievements = ach.snapshot();
       const unlocked = ach.snapshot().unlocked.filter((id) => !before.has(id));
-      this.results = { state: s, mode, challenge: this.currentChallenge, score, days, grade, best: Math.max(best, key), newBest, medal, unlocked, assisted: s.assisted };
+      this.lastStage = courtStage(s, t);
+      this.results = { state: s, mode, challenge: this.currentChallenge, score, days, grade, best: Math.max(best, key), newBest, medal, unlocked, assisted: s.assisted, ending: s.ending, caught: s.stats.caught, marks: s.marks.length };
       sv.store.save();
       this.phase("results");
       this.run = null;
@@ -602,6 +652,16 @@ export class CourtApp {
     if (this.screen === "play" && this.run) {
       if (this.pauseOpen) { this.handleMenuInput(); return; }
       if (this.pressed("pause") || this.pressed("ui_back")) { this.openPause(); return; }
+      if (this.run.phase === "deal") {
+        // The Deceiver's deal: Y / RB accepts, N / LB refuses; arrows move between the two, accept confirms. Default focus is refuse.
+        if (!this.focusId || (this.focusId !== "yes" && this.focusId !== "no")) this.focusId = "no";
+        if (this.pressed("ui_left") || this.pressed("ui_right")) this.focusId = this.focusId === "yes" ? "no" : "yes";
+        if (this.pressed("yes")) this.run.answerDeal(true);
+        else if (this.pressed("no")) this.run.answerDeal(false);
+        else if (this.pressed("ui_accept") || this.pressed("stop")) this.run.answerDeal(this.focusId === "yes");
+        this.run.update(dt);
+        return;
+      }
       if (this.pressed("stop")) {
         // Menu accept and gameplay stop share Space/A; only the active screen consumes it.
         this.run.pressStop(this.stopStamp());
@@ -623,7 +683,8 @@ export class CourtApp {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cw, ch);
     ctx.setTransform(stage.dpr, 0, 0, stage.dpr, 0, 0);
-    visual("court.backdrop")(ctx, stage.cssW / 2, stage.cssH / 2, stage.cssW, stage.cssH);
+    const rot = this.screen === "play" && this.run ? this.run.courtStage() : this.screen === "results" ? this.lastStage : 0;
+    visual("court.backdrop")(ctx, stage.cssW / 2, stage.cssH / 2, stage.cssW, stage.cssH, { stage: rot });
     ctx.save();
     ctx.translate(stage.ox, stage.oy);
     ctx.scale(stage.scale, stage.scale);
@@ -635,6 +696,7 @@ export class CourtApp {
     switch (this.screen) {
       case "title": this.drawTitle(ctx); break;
       case "menu": this.drawHeader(ctx, false); this.drawItems(ctx); break;
+      case "vows": this.drawVows(ctx); break;
       case "challenges": this.drawHeader(ctx, true); this.drawItems(ctx); break;
       case "profile": this.drawProfile(ctx); break;
       case "settings": this.drawHeader(ctx, true); this.drawItems(ctx); break;
@@ -679,8 +741,11 @@ export class CourtApp {
   }
 
   private drawBigButton(ctx: CanvasRenderingContext2D, it: Item, f: boolean): void {
+    ctx.save();
+    if (it.disabled) ctx.globalAlpha = 0.4;
     drawPanel(ctx, it.x, it.y + (f ? -4 : 0), it.w, it.h, { fill: f ? "#f6e6b8" : PAL.parchment, edge: f ? PAL.gold : PAL.ink, lw: f ? 6 : 3.5, seed: it.id.length * 9 });
     if (it.icon) drawIcon(ctx, it.icon, it.x + it.w / 2, it.y + it.h / 2 + (f ? -4 : 0), 64, { color: PAL.ink, lw: 2.4 });
+    ctx.restore();
   }
 
   private drawHeader(ctx: CanvasRenderingContext2D, small: boolean): void {
@@ -699,6 +764,29 @@ export class CourtApp {
     });
     const k = (Math.sin(this.time * 3.5) + 1) / 2;
     drawIcon(ctx, "play", W / 2, 700, 56 + k * 6, { color: PAL.ink });
+  }
+
+  private drawVows(ctx: CanvasRenderingContext2D): void {
+    const T = Math.max(14, stage.safeT + 10);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(W / 2 - 110, T, 220, 150); ctx.clip();
+    visual("deceiver.advisor")(ctx, W / 2, T + 96, 230, 230, { stage: 0 });
+    ctx.restore();
+    text(ctx, this.sv.content.deceiver.greeting, W / 2, T + 176, 30, { color: PAL.gold, stroke: PAL.ink });
+    // three oath pips: how many vows are sworn
+    for (let i = 0; i < 3; i++) drawIcon(ctx, "oath", W / 2 + (i - 1) * 44, T + 214, 28, { color: i < this.vowPick.length ? PAL.gold : "rgba(255,248,232,0.35)", lw: 2 });
+    this.drawItems(ctx);
+  }
+
+  private drawVowCard(ctx: CanvasRenderingContext2D, it: Item, f: boolean, vowId: string): void {
+    const def = this.sv.content.vows.get(vowId)!;
+    const on = this.vowPick.includes(vowId);
+    drawPanel(ctx, it.x, it.y + (f ? -3 : 0), it.w, it.h, { fill: on ? "#f3dc9a" : f ? "#f6e6b8" : PAL.parchment, edge: f ? PAL.gold : PAL.ink, lw: f ? 5 : 3, seed: vowId.charCodeAt(0) * 3 });
+    const cy = it.y + it.h / 2 + (f ? -3 : 0);
+    drawIcon(ctx, FACTION_ICON[def.faction], it.x + 36, cy - 22, 40, { color: PAL.ink, lw: 2.4 });
+    def.icons.forEach((id, i) => drawIcon(ctx, id, it.x + 100 + i * 52, cy - 10, 44, { color: PAL.ink, lw: 2.2 }));
+    text(ctx, def.line, it.x + it.w / 2, it.y + it.h - 22 + (f ? -3 : 0), 19, { color: PAL.ink });
+    if (on) drawIcon(ctx, "check", it.x + it.w - 26, it.y + 26, 30, { color: "#3f7a34", lw: 4 });
   }
 
   private drawTrialRow(ctx: CanvasRenderingContext2D, it: Item, f: boolean, c: ChallengeDef, medals: number): void {
@@ -743,31 +831,38 @@ export class CourtApp {
     if (!r) return;
     const win = r.state.over === "win";
     const fall = r.state.over === "fall";
+    const e = r.ending;
+    const ENDING_LABEL: Record<string, string> = { just: "Just King", marked: "Marked King", hollow: "Hollow King", long: "The Long Reign", usurped: "Usurped" };
     drawPanel(ctx, 30, 50, W - 60, 650, { seed: 91, lw: 4 });
-    if (win) drawIcon(ctx, "crown", W / 2, 108, 74, { color: PAL.goldDark, lw: 2.4 });
+    if (win) drawIcon(ctx, e === "marked" ? "crack" : e === "hollow" ? "halfmask" : e === "long" ? "hourglass" : "crown", W / 2, 108, 74, { color: PAL.goldDark, lw: 2.4 });
     else if (fall) { drawIcon(ctx, "crown", W / 2 - 14, 108, 70, { color: PAL.ink, alpha: 0.5 }); drawIcon(ctx, "down", W / 2 + 36, 126, 34, { color: "#8a2f1e" }); }
+    else if (e === "usurped") drawIcon(ctx, "blade", W / 2, 108, 74, { color: "#8a2f1e", lw: 2.4 });
     else drawIcon(ctx, "skull", W / 2, 108, 74, { color: PAL.ink, lw: 2.4 });
-    visual("ruler.king")(ctx, W / 2, 252, 210, 210);
+    // the figure on the page: the Deceiver when he took the throne or was unmasked, otherwise the king
+    visual(e === "usurped" || (win && e !== "long") ? "deceiver.advisor" : "ruler.king")(ctx, W / 2, 252, 210, 210, { stage: this.lastStage });
+    if (e && ENDING_LABEL[e]) text(ctx, ENDING_LABEL[e]!, W / 2, 346, 26, { color: PAL.goldDark, stroke: PAL.ink });
     const stats: StatKey[] = ["p", "h", "g"];
     const flag = (k: StatKey) => (win ? false : r.state.cause ? r.state.cause === k : r.state[k] <= 41);
     stats.forEach((k, i) => {
       const x = W / 2 + (i - 1) * 118;
-      drawIcon(ctx, STAT_ICON[k], x - 22, 370, 38, { color: PAL.ink });
-      text(ctx, String(Math.round(r.state[k])), x + 6, 371, 28, { align: "left" });
-      if (flag(k)) drawIcon(ctx, "down", x - 4, 396, 20, { color: "#8a2f1e" });
+      drawIcon(ctx, STAT_ICON[k], x - 22, 392, 36, { color: PAL.ink });
+      text(ctx, String(Math.round(r.state[k])), x + 6, 393, 26, { align: "left" });
+      if (flag(k)) drawIcon(ctx, "down", x - 4, 416, 18, { color: "#8a2f1e" });
     });
-    text(ctx, String(r.score), W / 2, 450, 78, { color: PAL.ink });
-    if (r.newBest) drawIcon(ctx, "star", W / 2 + 190, 450, 48, { color: PAL.goldDark });
-    drawIcon(ctx, r.mode === "endless" ? "infinity" : "calendar", W / 2 - 64, 520, 38, { color: PAL.ink });
-    text(ctx, String(r.days), W / 2 - 32, 522, 38, { align: "left" });
-    text(ctx, r.grade, W / 2 + 96, 522, 56, { color: PAL.goldDark, stroke: PAL.ink });
-    if (r.medal) drawIcon(ctx, "medal", W / 2 - 136, 522, 44, { color: PAL.goldDark });
+    text(ctx, String(r.score), W / 2, 466, 72, { color: PAL.ink });
+    if (r.newBest) drawIcon(ctx, "star", W / 2 + 190, 466, 44, { color: PAL.goldDark });
+    drawIcon(ctx, r.mode === "endless" ? "infinity" : "calendar", W / 2 - 64, 530, 36, { color: PAL.ink });
+    text(ctx, String(r.days), W / 2 - 34, 532, 36, { align: "left" });
+    text(ctx, r.grade, W / 2 + 96, 532, 52, { color: PAL.goldDark, stroke: PAL.ink });
+    if (r.medal) drawIcon(ctx, "medal", W / 2 - 136, 532, 42, { color: PAL.goldDark });
+    // exposure and marks: how the court ended up
+    drawIcon(ctx, "eye", W / 2 - 80, 590, 32, { color: PAL.ink }); text(ctx, String(r.caught), W / 2 - 54, 591, 28, { align: "left" });
+    drawIcon(ctx, "crack", W / 2 + 40, 590, 32, { color: "#8a2f1e" }); text(ctx, String(r.marks), W / 2 + 66, 591, 28, { align: "left" });
     if (r.assisted) drawIcon(ctx, "feather", W - 80, 110, 40, { color: PAL.ink, alpha: 0.7 });
     r.unlocked.slice(0, 6).forEach((id, i, a) => {
       const def = this.sv.content.achievements.find((x) => x.id === id);
-      if (def) drawIcon(ctx, def.icon, W / 2 + (i - (a.length - 1) / 2) * 62, 612, 46, { color: PAL.goldDark, lw: 2.4 });
+      if (def) drawIcon(ctx, def.icon, W / 2 + (i - (a.length - 1) / 2) * 62, 646, 44, { color: PAL.goldDark, lw: 2.4 });
     });
-    if (r.mode === "daily") drawIcon(ctx, "sun", 80, 110, 42, { color: PAL.ink });
     this.drawItems(ctx);
   }
 

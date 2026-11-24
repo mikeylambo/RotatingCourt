@@ -225,3 +225,54 @@ export function drawKing(ctx: Ctx, x: number, y: number, size: number, tint = "#
   hat(ctx, 1, tint);
   ctx.restore();
 }
+
+const DEC_COAT = ["#4d3060", "#3b2a48", "#1f1a24", "#100c13"];
+const DEC_SKIN = ["#ebe3d3", "#e0d9cc", "#cfcac2", "#bdbab6"];
+
+/**
+ * The Deceiver: gaunt and tall, sharp shoulders, a half-mask, and one blade shape repeated on collar,
+ * brow, chest and cane. His coat darkens with the court's rot while his gold leaf stays bright.
+ */
+export function drawDeceiver(ctx: Ctx, x: number, y: number, size: number, o: { stage?: number; bob?: number } = {}): void {
+  const st = Math.max(0, Math.min(3, o.stage ?? 0));
+  const coat = DEC_COAT[st]!, skin = DEC_SKIN[st]!, gold = "#e8bb44", accent = st === 3 ? "#7fd4e0" : gold;
+  ctx.save();
+  ctx.translate(x - size / 2, y - size / 2 + (o.bob ?? 0) * size / 512);
+  ctx.scale(size / 512, size / 512);
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.beginPath(); ctx.ellipse(256, 508, 150, 12, 0, 0, Math.PI * 2); ctx.fill();
+  // coat and sharp shoulders
+  poly(ctx, [196, 268, 316, 268, 346, 512, 166, 512], coat);
+  poly(ctx, [132, 258, 214, 262, 204, 306], shade(coat, 1.3));
+  poly(ctx, [380, 258, 298, 262, 308, 306], shade(coat, 1.3));
+  poly(ctx, [256, 268, 300, 268, 330, 512, 280, 512], shade(coat, 0.7), 0);
+  // blade-shaped collar
+  poly(ctx, [212, 268, 228, 212, 256, 262, 284, 212, 300, 268, 256, 330], shade(coat, 1.45), 8);
+  // chest blade motif
+  poly(ctx, [256, 338, 272, 410, 256, 490, 240, 410], gold, 6);
+  c_line(ctx, 232, 410, 280, 410);
+  // head
+  ell(ctx, 256, 172, 46, 72, skin);
+  // slicked hair with a peak
+  ctx.beginPath(); ctx.moveTo(208, 150); ctx.quadraticCurveTo(210, 92, 256, 96); ctx.quadraticCurveTo(302, 92, 304, 150);
+  ctx.lineTo(284, 132); ctx.lineTo(256, 150); ctx.lineTo(228, 132); ctx.closePath(); ink(ctx, "#18121c", 7);
+  // half mask (left side of the face) edged in gold leaf
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, 256, 512); ctx.clip();
+  ell(ctx, 256, 172, 46, 72, "#f1ebdd", 7);
+  ctx.restore();
+  ctx.beginPath(); ctx.moveTo(256, 104); ctx.lineTo(256, 242); ctx.lineWidth = 6; ctx.strokeStyle = gold; ctx.stroke();
+  poly(ctx, [214, 150, 256, 136, 256, 150, 218, 164], accent, 5); // blade brow
+  // eyes: one hidden by mask, one sly slit
+  ctx.fillStyle = INK; ctx.fillRect(230, 168, 16, 5);
+  ctx.beginPath(); ctx.moveTo(268, 170); ctx.lineTo(292, 164); ctx.lineWidth = 6; ctx.strokeStyle = INK; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(240, 216); ctx.quadraticCurveTo(262, 232, 290, 212); ctx.lineWidth = 5; ctx.stroke();
+  // cane with a blade finial
+  rrect(ctx, 404, 250, 12, 262, 5, "#2a2230");
+  poly(ctx, [398, 252, 410, 196, 422, 252], accent, 6);
+  ctx.restore();
+}
+
+function c_line(c: Ctx, x1: number, y1: number, x2: number, y2: number): void {
+  c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.lineWidth = 5; c.strokeStyle = INK; c.stroke();
+}

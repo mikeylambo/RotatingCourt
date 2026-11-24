@@ -7,11 +7,11 @@
 import { createVisualRegistry } from "@slu/web-shell";
 import spriteFiles from "virtual:art-sprites";
 import { drawCourtBackdrop } from "./backdrop";
-import { drawKing, drawPortrait } from "./portrait";
+import { drawDeceiver, drawKing, drawPortrait } from "./portrait";
 import type { Content } from "../types";
 
 /** Draw into the box centred at (x, y), `w` wide and `h` tall. */
-export type Draw = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, o?: { bob?: number }) => void;
+export type Draw = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, o?: { bob?: number; stage?: number }) => void;
 
 export const visuals = createVisualRegistry<Draw, { key: string }>();
 const resolved = new Map<string, Draw>();
@@ -61,7 +61,8 @@ export function registerVisuals(content: Content): Promise<void> {
     });
   }
   visuals.replace("ruler.king", { source: "procedural", tier: "hero", factory: () => (ctx, x, y, w) => drawKing(ctx, x, y, w) });
-  visuals.replace("court.backdrop", { source: "procedural", tier: "background", factory: () => (ctx, _x, _y, w, h) => drawCourtBackdrop(ctx, w, h) });
+  visuals.replace("court.backdrop", { source: "procedural", tier: "background", factory: () => (ctx, _x, _y, w, h, o) => drawCourtBackdrop(ctx, w, h, o?.stage ?? 0) });
+  visuals.replace("deceiver.advisor", { source: "procedural", tier: "hero", factory: () => (ctx, x, y, w, _h, o) => drawDeceiver(ctx, x, y, w, o) });
   visuals.replace("wheel.face", { source: "procedural", tier: "standard", factory: () => (ctx, x, y, w) => drawWheelFace(ctx, x, y, w) });
   resolved.clear();
 
