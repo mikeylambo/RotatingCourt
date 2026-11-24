@@ -13,7 +13,8 @@
     "web-runtime",
     "controller-ui",
     "production-services",
-    "release-manifest"
+    "release-manifest",
+    "touch-gameplay"
   ],
   "forbiddenSourceTokens": [
     "TODO_PLAYER",
