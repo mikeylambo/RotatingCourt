@@ -70,12 +70,12 @@ export function drawPopups(ctx: Ctx, y: number, popups: Popup[]): void {
     const k = p.age / 1.1;
     if (k >= 1) continue;
     const x = gaugeCenterX(p.stat);
-    const yy = y + 78 + p.slot * 0 + k * 46;
+    const yy = y - 6 - k * 34;
     ctx.save();
     ctx.globalAlpha = k < 0.15 ? k / 0.15 : 1 - Math.max(0, (k - 0.6) / 0.4);
     const up = p.amount > 0;
     const label = `${Math.abs(Math.round(p.amount * 10) / 10)}`;
-    ctx.beginPath(); ctx.roundRect(x - 40, yy - 15, 80, 30, 12);
+    ctx.beginPath(); ctx.roundRect(x - 38, yy - 14, 76, 28, 12);
     ctx.fillStyle = up ? "rgba(224,242,200,0.96)" : "rgba(246,208,196,0.96)";
     ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = PAL.ink; ctx.stroke();
     drawIcon(ctx, up ? "up" : "down", x - 20, yy, 18, { color: up ? "#2f6a28" : "#8a2f1e" });

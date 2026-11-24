@@ -301,8 +301,8 @@ export class CourtApp {
       }
       case "results":
         items = [
-          { id: "retry", x: W / 2 - 176, y: H - 190 - stage.safeB, w: 168, h: 120, aria: "retry", icon: "retry", draw: (c, it, f) => this.drawBigButton(c, it, f) },
-          { id: "menu", x: W / 2 + 8, y: H - 190 - stage.safeB, w: 168, h: 120, aria: "menu", icon: "home", draw: (c, it, f) => this.drawBigButton(c, it, f) }
+          { id: "retry", x: W / 2 - 176, y: 730, w: 168, h: 120, aria: "retry", icon: "retry", draw: (c, it, f) => this.drawBigButton(c, it, f) },
+          { id: "menu", x: W / 2 + 8, y: 730, w: 168, h: 120, aria: "menu", icon: "home", draw: (c, it, f) => this.drawBigButton(c, it, f) }
         ];
         break;
       default:
@@ -734,26 +734,30 @@ export class CourtApp {
     const r = this.results;
     if (!r) return;
     const win = r.state.over === "win";
-    drawPanel(ctx, 30, 60, W - 60, 680, { seed: 91, lw: 4 });
-    visual("ruler.king")(ctx, W / 2, 190, 230, 230);
-    drawIcon(ctx, win ? "crown" : "skull", W / 2, 70, 72, { color: win ? PAL.goldDark : PAL.ink, lw: 2.4 });
-    if (!win) {
-      const cause: StatKey | null = r.state.cause;
-      if (cause) { drawIcon(ctx, STAT_ICON[cause], W / 2 - 24, 335, 40, { color: PAL.ink }); drawIcon(ctx, "down", W / 2 + 22, 335, 30, { color: "#8a2f1e" }); }
-      else (["p", "h", "g"] as StatKey[]).forEach((k, i) => { const x = W / 2 + (i - 1) * 70; drawIcon(ctx, STAT_ICON[k], x, 335, 36, { color: PAL.ink, alpha: r.state[k] > 41 ? 0.35 : 1 }); if (r.state[k] <= 41) drawIcon(ctx, "down", x + 24, 352, 18, { color: "#8a2f1e" }); });
-    } else {
-      (["p", "h", "g"] as StatKey[]).forEach((k, i) => { const x = W / 2 + (i - 1) * 80; drawIcon(ctx, STAT_ICON[k], x - 12, 335, 36, { color: PAL.ink }); text(ctx, String(Math.round(r.state[k])), x + 22, 336, 24, { align: "left" }); });
-    }
-    text(ctx, String(r.score), W / 2, 408, 76, { color: PAL.ink });
-    if (r.newBest) drawIcon(ctx, "star", W / 2 + 190, 408, 48, { color: PAL.goldDark });
-    drawIcon(ctx, r.mode === "endless" ? "infinity" : "calendar", W / 2 - 54, 476, 38, { color: PAL.ink });
-    text(ctx, String(r.days), W / 2 - 22, 478, 38, { align: "left" });
-    text(ctx, r.grade, W / 2 + 96, 478, 54, { color: PAL.goldDark, stroke: PAL.ink });
-    if (r.medal) drawIcon(ctx, "medal", W / 2 - 126, 478, 44, { color: PAL.goldDark });
+    const fall = r.state.over === "fall";
+    drawPanel(ctx, 30, 50, W - 60, 650, { seed: 91, lw: 4 });
+    if (win) drawIcon(ctx, "crown", W / 2, 108, 74, { color: PAL.goldDark, lw: 2.4 });
+    else if (fall) { drawIcon(ctx, "crown", W / 2 - 14, 108, 70, { color: PAL.ink, alpha: 0.5 }); drawIcon(ctx, "down", W / 2 + 36, 126, 34, { color: "#8a2f1e" }); }
+    else drawIcon(ctx, "skull", W / 2, 108, 74, { color: PAL.ink, lw: 2.4 });
+    visual("ruler.king")(ctx, W / 2, 252, 210, 210);
+    const stats: StatKey[] = ["p", "h", "g"];
+    const flag = (k: StatKey) => (win ? false : r.state.cause ? r.state.cause === k : r.state[k] <= 41);
+    stats.forEach((k, i) => {
+      const x = W / 2 + (i - 1) * 118;
+      drawIcon(ctx, STAT_ICON[k], x - 22, 370, 38, { color: PAL.ink });
+      text(ctx, String(Math.round(r.state[k])), x + 6, 371, 28, { align: "left" });
+      if (flag(k)) drawIcon(ctx, "down", x - 4, 396, 20, { color: "#8a2f1e" });
+    });
+    text(ctx, String(r.score), W / 2, 450, 78, { color: PAL.ink });
+    if (r.newBest) drawIcon(ctx, "star", W / 2 + 190, 450, 48, { color: PAL.goldDark });
+    drawIcon(ctx, r.mode === "endless" ? "infinity" : "calendar", W / 2 - 64, 520, 38, { color: PAL.ink });
+    text(ctx, String(r.days), W / 2 - 32, 522, 38, { align: "left" });
+    text(ctx, r.grade, W / 2 + 96, 522, 56, { color: PAL.goldDark, stroke: PAL.ink });
+    if (r.medal) drawIcon(ctx, "medal", W / 2 - 136, 522, 44, { color: PAL.goldDark });
     if (r.assisted) drawIcon(ctx, "feather", W - 80, 110, 40, { color: PAL.ink, alpha: 0.7 });
     r.unlocked.slice(0, 6).forEach((id, i, a) => {
       const def = this.sv.content.achievements.find((x) => x.id === id);
-      if (def) drawIcon(ctx, def.icon, W / 2 + (i - (a.length - 1) / 2) * 62, 570, 46, { color: PAL.goldDark, lw: 2.4 });
+      if (def) drawIcon(ctx, def.icon, W / 2 + (i - (a.length - 1) / 2) * 62, 612, 46, { color: PAL.goldDark, lw: 2.4 });
     });
     if (r.mode === "daily") drawIcon(ctx, "sun", 80, 110, 42, { color: PAL.ink });
     this.drawItems(ctx);

@@ -1,7 +1,7 @@
 {
   "gameId": "rotating-court",
-  "version": "0.1.0",
-  "channel": "development",
+  "version": "1.0.0",
+  "channel": "release",
   "demo": false,
   "renderer": "canvas2d",
   "frames": [
@@ -10,7 +10,8 @@
   ],
   "supportedInputs": [
     "keyboard-mouse",
-    "gamepad"
+    "gamepad",
+    "touch"
   ],
   "supportedLocales": [
     "en"
