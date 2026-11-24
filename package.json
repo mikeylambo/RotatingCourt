@@ -1,0 +1,25 @@
+{
+  "name": "rotating-court",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "tsc --noEmit",
+    "verify": "npm run check && npm run build",
+    "certify:web": "npm run verify && slu-certify web",
+    "certify:mobile": "npm run verify && slu-certify mobile",
+    "certify:controller": "npm run verify && slu-certify controller",
+    "certify:release": "npm run verify && slu-certify release",
+    "balance": "node tools/balance.mjs"
+  },
+  "dependencies": {
+    "@slu/web-shell": "github:mikeylambo/Web-Game-Shell-v1.02#7003ec7a46f0de4c86b8dbb28fea81c10d4f21fa"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0"
+  }
+}
