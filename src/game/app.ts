@@ -93,6 +93,8 @@ export class CourtApp {
   private currentSeedKey: string | null = null;
   private runAssisted = false;
   private shakeDeny = 0;
+  /** Menu row to re-focus when returning from a sub-screen. */
+  private menuFocus: string | null = null;
   private ctx: CanvasRenderingContext2D;
   private platform = new BrowserPlatform();
 
@@ -221,7 +223,7 @@ export class CourtApp {
   private goto(id: ScreenId): void {
     emit("ui.confirm");
     if (id === "menu") this.phase("menu");
-    this.focusId = null;
+    this.focusId = id === "menu" ? this.menuFocus : null;
     void this.screens.show(id, undefined, false);
   }
 
@@ -371,6 +373,7 @@ export class CourtApp {
     }
     switch (this.screen) {
       case "menu":
+        this.menuFocus = id;
         if (id === "continue") this.continueRun();
         else if (id === "reign") this.startRun("reign", null);
         else if (id === "daily") this.startRun("daily", null);
@@ -638,17 +641,22 @@ export class CourtApp {
       case "results": this.drawResults(ctx); break;
       case "play":
         this.run?.draw(ctx, this.time, this.currentMode, this.focusId);
-        if (this.pauseOpen) {
-          ctx.fillStyle = PAL.dim;
-          ctx.fillRect(0, 0, W, H);
-          this.drawItems(ctx);
-        }
         break;
     }
     ctx.translate(0, -stage.offY);
     this.drawToasts(ctx);
     ctx.restore();
     ctx.setTransform(stage.dpr, 0, 0, stage.dpr, 0, 0);
+    if (this.screen === "play" && this.pauseOpen) {
+      // Dim the whole window (not just the stage), then draw the pause buttons on top.
+      ctx.fillStyle = PAL.dim;
+      ctx.fillRect(0, 0, stage.cssW, stage.cssH);
+      ctx.save();
+      ctx.translate(stage.ox, stage.oy + stage.offY * stage.scale);
+      ctx.scale(stage.scale, stage.scale);
+      this.drawItems(ctx);
+      ctx.restore();
+    }
     drawVignette(ctx, stage.cssW, stage.cssH);
   }
 
@@ -698,7 +706,7 @@ export class CourtApp {
     const cy = it.y + it.h / 2 + (f ? -3 : 0);
     drawIcon(ctx, c.icon, it.x + 44, cy, 48, { color: PAL.ink, lw: 2.4 });
     text(ctx, c.label, it.x + 88, cy, 30, { align: "left" });
-    for (let i = 0; i < 3; i++) drawIcon(ctx, "star", it.x + it.w - 150 + i * 44, cy, 36, { color: i < medals ? PAL.goldDark : "rgba(42,29,20,0.25)", lw: 1.5 });
+    for (let i = 0; i < 3; i++) drawIcon(ctx, "star", it.x + it.w - 190 + i * 40, cy, 34, { color: i < medals ? PAL.goldDark : "rgba(42,29,20,0.25)", lw: 1.5 });
     if (this.sv.content.challenges.indexOf(c) >= 3 && !this.sv.shell.unlocks.has("trials-hard")) {
       ctx.fillStyle = "rgba(42,29,20,0.4)";
       ctx.beginPath(); ctx.roundRect(it.x, it.y, it.w, it.h, 6); ctx.fill();
