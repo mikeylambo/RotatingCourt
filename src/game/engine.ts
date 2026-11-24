@@ -5,11 +5,12 @@
  * Presentation reads this state; it never writes back into it.
  */
 import { DeterministicRng, stableHashString } from "@slu/web-shell";
+import { FACTION_STAT } from "./types";
 import type {
-  ArcState, Content, Ev, Fx, GameState, Later, Mode, Outcome, RequestDef, Ruling, SegKind, StatKey, Tuning, Wheel, WheelSeg
+  ArcState, Content, Cur, Ending, Ev, Fx, GameState, Later, Mode, Outcome, RequestDef, Ruling, SegKind, StatKey, Tuning, Wheel, WheelSeg
 } from "./types";
 
-const STREAMS = ["queue", "wheel", "fx", "omen"] as const;
+const STREAMS = ["queue", "wheel", "fx", "omen", "dec", "vow"] as const;
 type Stream = (typeof STREAMS)[number];
 
 export interface RunOptions {
@@ -17,7 +18,15 @@ export interface RunOptions {
   seed: string;
   challenge?: string | null;
   assist?: boolean;
+  /** Run the scripted Vow Night + three tutorial days first (they never count toward the 25). */
+  tutorial?: boolean;
+  /** Vows sworn on night zero; defaults to three picked from the seed. */
+  vows?: string[];
+  /** First run after the tutorial: the Deceiver lies rarely so his pattern can be learned. */
+  firstRun?: boolean;
 }
+
+const opposite = (r: "yes" | "no"): "yes" | "no" => (r === "yes" ? "no" : "yes");
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -31,16 +40,20 @@ function keep(s: GameState, name: Stream, r: DeterministicRng): void {
 export function createRun(content: Content, t: Tuning, o: RunOptions): GameState {
   const master = stableHashString(`${o.seed}:${o.mode}`);
   const s: GameState = {
-    v: 1, mode: o.mode, seed: o.seed, challenge: o.challenge ?? null,
+    v: 2, mode: o.mode, seed: o.seed, challenge: o.challenge ?? null,
     day: 1, slot: 0, p: t.startP!, h: t.startH!, g: t.startG!,
     pending: [], nextPid: 1, queue: [], bag: [], seen: {}, arcs: {},
     omen: null, omenDays: {},
     rng: {
       queue: stableHashString(`${master}:queue`), wheel: stableHashString(`${master}:wheel`),
-      fx: stableHashString(`${master}:fx`), omen: stableHashString(`${master}:omen`)
+      fx: stableHashString(`${master}:fx`), omen: stableHashString(`${master}:omen`),
+      dec: stableHashString(`${master}:dec`), vow: stableHashString(`${master}:vow`)
     },
     wheel: null, dayEnded: false, over: null, cause: null,
-    stats: { yes: 0, no: 0, hazards: 0, delayed: 0, cleanDays: 0, hazardToday: 0, streak: 0, bestStreak: 0, stops: 0, arcsDone: 0 },
+    stats: { yes: 0, no: 0, hazards: 0, delayed: 0, cleanDays: 0, hazardToday: 0, streak: 0, bestStreak: 0, stops: 0, arcsDone: 0, caught: 0, wrong: 0 },
+    vows: [], marks: [], usurp: 0, expose: 0, dealOffer: null, dealsTaken: 0, activeDeals: [], debts: [],
+    tut: o.tutorial ? 1 : 0, lieRate: o.firstRun ? t.lieRateFirst! : t.lieRate!, cycle: 0,
+    cur: { truth: true, tell: null, advice: null }, ending: null,
     assisted: false, assist: !!o.assist
   };
   // Omen calendar: a handful of days across the reign, one omen each.
@@ -54,8 +67,35 @@ export function createRun(content: Content, t: Tuning, o: RunOptions): GameState
     for (let i = 0; i < n; i++) s.omenDays[days[i]!] = omens[i]!;
   }
   keep(s, "omen", r);
+  swearVows(s, content, t, o.vows);
   startDay(s, content, t, []);
   return s;
+}
+
+/* -------------------------------------------------------------------- vows */
+
+/** Night zero: swear three vows and schedule when each is called in (dormant until then). */
+function swearVows(s: GameState, content: Content, t: Tuning, chosen?: string[]): void {
+  const r = stream(s, "vow");
+  const ids = (chosen ?? r.shuffle([...content.vowOrder]).slice(0, 3)).slice(0, 3);
+  s.vows = ids.map((id) => ({ id, due: 0, status: "sworn" as const }));
+  scheduleVows(s, content, t, r);
+  keep(s, "vow", r);
+}
+
+/** Each sworn vow is called in at least once, on distinct days inside its window. */
+function scheduleVows(s: GameState, content: Content, t: Tuning, r: DeterministicRng): void {
+  const used = new Set<number>();
+  for (const v of s.vows) {
+    const def = content.vows.get(v.id)!;
+    const lo = def.due[0], hi = Math.min(def.due[1], t.days! - 2);
+    let day = r.int(lo, Math.max(lo, hi));
+    for (let guard = 0; guard < 12 && used.has(day); guard++) day = r.int(lo, Math.max(lo, hi));
+    while (used.has(day)) day++;
+    used.add(day);
+    v.due = day;
+    v.status = "sworn";
+  }
 }
 
 /* ---------------------------------------------------------------- day flow */
@@ -104,27 +144,113 @@ function startDay(s: GameState, content: Content, t: Tuning, ev: Ev[]): void {
     if (s.over) return;
   }
 
-  // Queue
+  // Queue: forced petitions first (scripted tutorial, debt, vow call-ins, returning characters), then fresh ones.
   const r = stream(s, "queue");
   const queue: string[] = [];
   const taken = new Set<string>();
-  for (const [arcId, arc] of Object.entries(s.arcs)) {
-    if (!arc.done && arc.due <= s.day && queue.length < 2) {
-      const def = content.arcs.get(arcId)!;
-      queue.push(arc.ruling === "yes" ? def.yes : def.no);
-      taken.add(def.archetype);
-      arc.done = true;
-      s.stats.arcsDone++;
+  const forcedIds: string[] = [];
+  if (s.tut) {
+    const td = content.deceiver.tutorial[s.tut - 1]!;
+    if (td.vow) {
+      const v = s.vows[0]!;
+      v.status = "called";
+      forcedIds.push(content.vows.get(v.id)!.request);
+      ev.push({ t: "vow", id: v.id, result: "called" });
+    }
+    forcedIds.push(...td.requests);
+  } else {
+    const debt = s.debts.findIndex((d) => d.due <= s.day);
+    if (debt >= 0) { s.debts.splice(debt, 1); forcedIds.push("deceiver.debt"); }
+    for (const v of s.vows) {
+      if (v.status === "sworn" && v.due <= s.day && forcedIds.length < 3) {
+        v.status = "called";
+        forcedIds.push(content.vows.get(v.id)!.request);
+        ev.push({ t: "vow", id: v.id, result: "called" });
+      }
+    }
+    for (const [arcId, arc] of Object.entries(s.arcs)) {
+      if (!arc.done && arc.due <= s.day && forcedIds.length < 3) {
+        const def = content.arcs.get(arcId)!;
+        forcedIds.push(arc.ruling === "yes" ? def.yes : def.no);
+        taken.add(def.archetype);
+        arc.done = true;
+        s.stats.arcsDone++;
+      }
     }
   }
-  while (queue.length < t.perDay!) {
-    const arch = drawArchetype(s, content, r, taken);
-    taken.add(arch);
-    queue.push(pickRequest(s, content, arch, r).id);
+  queue.push(...forcedIds);
+  for (const id of forcedIds) taken.add(content.requests.get(id)!.archetype);
+  if (!s.tut) {
+    while (queue.length < t.perDay!) {
+      // Each mark pulls that faction's hostile petitioners into the court more often.
+      let arch: string | null = null;
+      if (s.marks.length && r.chance(Math.min(0.8, t.markPull! * s.marks.length))) {
+        const f = r.pick(s.marks).faction;
+        const pool = content.archetypeOrder.filter((a) => content.archetypes.get(a)!.faction === f && !taken.has(a));
+        if (pool.length) arch = r.pick(pool);
+      }
+      arch ??= drawArchetype(s, content, r, taken);
+      taken.add(arch);
+      queue.push(pickRequest(s, content, arch, r).id);
+    }
+    r.shuffle(queue);
+    // Forced petitions come first: vows and debts are the day's weight.
+    queue.sort((a, b) => Number(!forcedIds.includes(a)) - Number(!forcedIds.includes(b)));
   }
-  r.shuffle(queue);
   keep(s, "queue", r);
   s.queue = queue;
+
+  // Deal: roughly every third day the Deceiver offers one at dawn.
+  s.dealOffer = null;
+  if (!s.tut || s.tut === 3) {
+    const scripted = s.tut === 3 ? content.deceiver.tutorial[2]!.deal ?? null : null;
+    if (scripted) s.dealOffer = scripted;
+    else if (s.day >= t.dealEvery! && s.day % t.dealEvery! === 0 && (s.mode === "endless" || s.day < t.days!)) {
+      const dr = stream(s, "dec");
+      if (dr.chance(t.dealChance!)) {
+        const soon = s.vows.some((v) => (v.status === "sworn" || v.status === "called") && v.due <= s.day + 3);
+        const options = content.dealOrder.filter((id) => id !== "clean" || soon);
+        s.dealOffer = dr.pick(options);
+      }
+      keep(s, "dec", dr);
+    }
+    if (s.dealOffer) ev.push({ t: "deal", id: s.dealOffer, accepted: false });
+  }
+  preparePetition(s, content, t);
+}
+
+/** Read the petitioner and the Deceiver's advice for the petition at the front of the queue. */
+export function preparePetition(s: GameState, content: Content, t: Tuning): void {
+  const req = currentRequest(s, content);
+  const dec = stream(s, "dec");
+  let truth = req.truth;
+  let tell: string | null = req.tell;
+  let advice: Cur["advice"] = null;
+  if (s.tut && !req.vow) {
+    const td = content.deceiver.tutorial[s.tut - 1]!;
+    truth = td.truth;
+    tell = td.tell;
+    const trueRuling = truth ? "yes" : "no";
+    advice = td.advice === null ? null : { ruling: td.advice === "lie" ? opposite(trueRuling) : trueRuling, lie: td.advice === "lie" };
+  } else if (req.vow) {
+    // He always urges you to break a vow.
+    advice = { ruling: opposite(content.vows.get(req.vow)!.keep), lie: false };
+    tell = null;
+  } else if (req.forced) {
+    advice = { ruling: "yes", lie: false };
+    tell = null;
+  } else {
+    const shown = dec.chance(t.tellPresence!);
+    const roll = dec.next();
+    if (!shown) tell = null;
+    const trueRuling = truth ? "yes" : "no";
+    // He lies only when the true ruling would hurt him.
+    const hurt = content.deceiver.hurts[req.faction] === trueRuling;
+    const lie = hurt && roll < s.lieRate;
+    advice = { ruling: lie ? opposite(trueRuling) : trueRuling, lie };
+  }
+  keep(s, "dec", dec);
+  s.cur = { truth, tell, advice };
   prepareWheel(s, content, t);
 }
 
@@ -154,6 +280,8 @@ export function prepareWheel(s: GameState, content: Content, t: Tuning): Wheel {
   if (arch.hazard === "bribe" && s.g < t.lowGoldBelow!) haz *= 1 + t.bribeWiden! * (t.lowGoldBelow! - s.g) / t.lowGoldBelow!;
   if (omen) { yes *= omen.yes; no *= omen.no; haz *= omen.haz; }
   if (s.assist) { yes *= t.assistWiden!; no *= t.assistWiden!; haz /= t.assistWiden!; }
+  if (s.activeDeals.some((d) => d.id === "mercy")) yes *= t.mercyYes!;
+  if (req.forced) { yes *= t.debtYes!; haz *= t.debtHaz!; }
   yes = Math.max(yes, t.minSeg!); no = Math.max(no, t.minSeg!); haz = Math.max(haz, t.minSeg!);
   const sum = yes + no + haz;
   yes /= sum; no /= sum; haz /= sum;
@@ -169,7 +297,7 @@ export function prepareWheel(s: GameState, content: Content, t: Tuning): Wheel {
   let at = 0;
   for (const [kind, size] of order) { segs.push({ kind, start: at, size }); at += size; }
 
-  const speed = speedFor(s, t) * (omen ? omen.speed : 1);
+  const speed = speedFor(s, t) * (omen ? omen.speed : 1) * (s.activeDeals.some((d) => d.id === "slow") ? t.slowSpeed! : 1);
   s.wheel = { segs, phase, speed, spinUp: t.spinUp!, hazard: arch.hazard };
   return s.wheel;
 }
@@ -229,7 +357,7 @@ function checkLose(s: GameState, ev: Ev[]): void {
   if (s.over) return;
   for (const key of ["p", "h", "g"] as StatKey[]) {
     if (s[key] <= 0) {
-      s.over = "lose"; s.cause = key;
+      s.over = "lose"; s.cause = key; s.ending = "collapse";
       ev.push({ t: "reign.lose", cause: key });
       return;
     }
@@ -254,6 +382,7 @@ function queueLater(s: GameState, req: RequestDef, rows: Later[], ev: Ev[], scal
  */
 export function rule(s: GameState, content: Content, t: Tuning, frac: number, intent?: "yes" | "no"): Ruling {
   if (s.over || s.dayEnded || !s.wheel) throw new Error("rule() called with no active petition");
+  if (s.dealOffer) throw new Error("answer the Deceiver's deal before ruling");
   const ev: Ev[] = [];
   const req = currentRequest(s, content);
   const w = s.wheel;
@@ -291,6 +420,33 @@ export function rule(s: GameState, content: Content, t: Tuning, frac: number, in
     if (!s.over) queueLater(s, req, o.later, ev, t.effectScale!);
   }
 
+  // Reading people: a ruling against the truth costs that faction's favour; ruling against a proven lie exposes him.
+  const cur = s.cur;
+  if (!req.vow && !req.forced && kind !== "hazard" && !s.over) {
+    const correct = cur.truth ? "yes" : "no";
+    if (kind !== correct) {
+      s.stats.wrong++;
+      applyFx(s, t, { [FACTION_STAT[req.faction]]: -t.wrongPenalty! } as Fx, "wrong", ev);
+      if (cur.advice?.lie && kind === cur.advice.ruling && cur.tell && s.expose > 0) {
+        s.expose--;
+        ev.push({ t: "expose", n: s.expose, delta: -1 });
+      }
+    } else if (cur.advice?.lie && cur.tell && content.tells.get(cur.tell)!.signal === (cur.truth ? "truth" : "lie")) {
+      s.expose++;
+      s.stats.caught++;
+      ev.push({ t: "expose", n: s.expose, delta: 1 });
+    }
+  }
+  // Vow call-in: keep it or break it. A hazard counts as forgetting it.
+  if (req.vow) {
+    const def = content.vows.get(req.vow)!;
+    const vs = s.vows.find((v) => v.id === req.vow);
+    if (vs) {
+      if (kind === def.keep) { vs.status = "kept"; ev.push({ t: "vow", id: vs.id, result: "kept" }); }
+      else { vs.status = "broken"; s.marks.push({ faction: def.faction, vow: def.id }); ev.push({ t: "vow", id: vs.id, result: "broken" }); }
+    }
+  }
+
   // Recurring character: remember the ruling and schedule the return.
   if (req.arc && !s.arcs[req.arc]) {
     const r = stream(s, "queue");
@@ -300,16 +456,79 @@ export function rule(s: GameState, content: Content, t: Tuning, frac: number, in
     s.arcs[req.arc] = arc;
   }
 
+  checkEndings(s, t, ev);
   s.slot++;
-  if (!s.over && s.slot >= t.perDay!) endDay(s, content, t, ev);
-  else if (!s.over) prepareWheel(s, content, t);
+  if (!s.over && s.slot >= s.queue.length) endDay(s, content, t, ev);
+  else if (!s.over) preparePetition(s, content, t);
   return { kind, requestId: req.id, events: ev };
+}
+
+/** The Deceiver wins at Usurpation 10; you win by exposing him first (the ending depends on how you got there). */
+function checkEndings(s: GameState, t: Tuning, ev: Ev[]): void {
+  if (s.over || s.tut) return;
+  if (s.usurp >= t.usurpLimit!) {
+    s.over = "lose"; s.ending = "usurped";
+    ev.push({ t: "ending", id: "usurped" }, { t: "reign.lose", cause: "weak" });
+    return;
+  }
+  if (s.expose >= t.exposeLimit!) {
+    if (s.mode === "endless") {
+      // He slinks away and comes back stronger.
+      s.expose = 0; s.usurp = 0; s.cycle++;
+      return;
+    }
+    const ending: Ending = s.marks.length >= 3 ? "marked" : s.dealsTaken >= 3 ? "hollow" : "just";
+    s.over = "win"; s.ending = ending;
+    ev.push({ t: "ending", id: ending }, { t: "reign.win" });
+  }
+}
+
+/** Accept or refuse the Deceiver's dawn deal. Accepting buys an edge now and a debt later. */
+export function answerDeal(s: GameState, content: Content, t: Tuning, accept: boolean): Ev[] {
+  const ev: Ev[] = [];
+  const id = s.dealOffer;
+  if (!id || s.over) return ev;
+  const deal = content.deals.get(id)!;
+  s.dealOffer = null;
+  ev.push({ t: "deal", id, accepted: accept });
+  if (!accept) return ev;
+  s.dealsTaken++;
+  s.usurp += deal.usurp + s.cycle * t.endlessEscalate!;
+  const dr = stream(s, "dec");
+  s.debts.push({ due: s.day + dr.int(t.debtMin!, t.debtMax!) });
+  keep(s, "dec", dr);
+  if (deal.days) s.activeDeals.push({ id, until: s.day + deal.days - 1 });
+  if (deal.fx) applyFx(s, t, deal.fx, "deal", ev, deal.icon);
+  if (id === "clean") {
+    // Erase the vow that is due soonest: no mark.
+    const target = s.vows.filter((v) => v.status === "sworn" || v.status === "called").sort((a, b) => a.due - b.due)[0];
+    if (target) {
+      const wasCalled = target.status === "called";
+      target.status = "erased";
+      ev.push({ t: "vow", id: target.id, result: "erased" });
+      if (wasCalled) {
+        const reqId = content.vows.get(target.id)!.request;
+        const at = s.queue.indexOf(reqId, s.slot);
+        if (at >= 0) {
+          const r = stream(s, "queue");
+          const taken = new Set(s.queue.map((q) => content.requests.get(q)!.archetype));
+          s.queue[at] = pickRequest(s, content, drawArchetype(s, content, r, taken), r).id;
+          keep(s, "queue", r);
+        }
+      }
+    }
+  }
+  checkEndings(s, t, ev);
+  if (!s.over) preparePetition(s, content, t);
+  return ev;
 }
 
 /** Daily tick: omen, taxes, happiness drag, gold fixing unrest, population growth; then win/lose. */
 export function endDay(s: GameState, content: Content, t: Tuning, ev: Ev[]): void {
   s.dayEnded = true;
+  if (s.tut) { ev.push({ t: "day.end", day: s.day }); return; }
   if (s.stats.hazardToday === 0) s.stats.cleanDays++;
+  if (s.expose > 0 && s.day % t.exposeDecay! === 0) s.expose--;
   const omen = s.omen ? content.omens.get(s.omen)! : null;
   if (omen) applyFx(s, t, omen.daily, "omen", ev, omen.icon, t.omenEffect!);
   if (!s.over) applyFx(s, t, { g: t.taxPerPop! * s.p }, "tax", ev);
@@ -324,6 +543,8 @@ export function endDay(s: GameState, content: Content, t: Tuning, ev: Ev[]): voi
   if (s.mode !== "endless" && s.day >= t.days!) {
     const ok = s.p > t.winMin! && s.h > t.winMin! && s.g > t.winMin!;
     s.over = ok ? "win" : "fall";
+    s.ending = ok ? "long" : "weak";
+    if (ok) ev.push({ t: "ending", id: "long" });
     ev.push(ok ? { t: "reign.win" } : { t: "reign.lose", cause: "weak" });
   }
 }
@@ -332,7 +553,19 @@ export function endDay(s: GameState, content: Content, t: Tuning, ev: Ev[]): voi
 export function nextDay(s: GameState, content: Content, t: Tuning): Ev[] {
   const ev: Ev[] = [];
   if (s.over || !s.dayEnded) return ev;
-  s.day++;
+  if (s.tut === 3) {
+    // The tutorial never counts toward the 25: the real reign starts clean with the same vows sworn.
+    s.tut = 0; s.day = 1;
+    s.p = t.startP!; s.h = t.startH!; s.g = t.startG!;
+    s.pending = []; s.debts = []; s.activeDeals = []; s.marks = []; s.arcs = {}; s.seen = {};
+    s.usurp = 0; s.expose = 0; s.dealsTaken = 0; s.cycle = 0;
+    s.stats = { yes: 0, no: 0, hazards: 0, delayed: 0, cleanDays: 0, hazardToday: 0, streak: 0, bestStreak: 0, stops: 0, arcsDone: 0, caught: 0, wrong: 0 };
+    const r = stream(s, "vow");
+    scheduleVows(s, content, t, r);
+    keep(s, "vow", r);
+  } else if (s.tut) {
+    s.tut++; s.day = s.tut;
+  } else s.day++;
   startDay(s, content, t, ev);
   return ev;
 }
@@ -341,7 +574,9 @@ export function finalScore(s: GameState, t: Tuning): number {
   const days = s.over && s.dayEnded ? s.day : s.day - 1;
   let score = days * t.scoreDay! + s.stats.cleanDays * t.scoreCleanDay!;
   score += Math.round((s.p + s.h + s.g) * t.scoreStat!);
-  if (s.over === "win") score += t.scoreWin!;
+  if (s.over === "win") {
+    score += s.ending === "just" ? t.scoreJust! : s.ending === "marked" ? t.scoreMarked! : s.ending === "hollow" ? t.scoreHollow! : t.scoreLong!;
+  }
   return Math.round(score);
 }
 

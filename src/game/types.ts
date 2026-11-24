@@ -19,9 +19,24 @@ export interface Outcome {
   later: Later[];
 }
 
+export type Faction = "commons" | "temple" | "army" | "treasury";
+export const FACTIONS: Faction[] = ["commons", "temple", "army", "treasury"];
+/** The stat each faction's favour is felt in. */
+/** Pictogram per faction. */
+export const FACTION_ICON: Record<Faction, string> = { commons: "wheat", temple: "cross", army: "sword", treasury: "coin" };
+export const FACTION_STAT: Record<Faction, StatKey> = { commons: "h", temple: "h", army: "p", treasury: "g" };
+
 export interface RequestDef {
   id: string;
   archetype: string;
+  faction: Faction;
+  /** Hidden: is the petitioner honest? Honest petitions should be granted, dishonest refused. */
+  truth: boolean;
+  /** Tell icon that hints at the truth flag. */
+  tell: string | null;
+  /** Set for vow call-in petitions. */
+  vow?: string;
+  forced?: boolean;
   /** Pictogram of the ask: icon ids. */
   ask: string[];
   /** At most one short line. */
@@ -43,6 +58,7 @@ export interface Look {
 
 export interface ArchetypeDef {
   id: string;
+  faction: Faction;
   hazard: string;
   /** Hazard magnitude multiplier. */
   mag: number;
@@ -97,7 +113,34 @@ export interface ChallengeDef {
   medals: { medal: string; threshold: number }[];
 }
 
+export interface TellDef { id: string; signal: "lie" | "truth" }
+export interface VowDef {
+  id: string;
+  faction: Faction;
+  icons: string[];
+  line: string;
+  /** The ruling that keeps the vow. */
+  keep: "yes" | "no";
+  due: [number, number];
+  request: string;
+}
+export interface DealDef { id: string; icon: string; usurp: number; days?: number; fx?: Fx }
+export interface TutorialDay { requests: string[]; tell: string | null; advice: "true" | "lie" | null; truth: boolean; vow?: boolean; deal?: string }
+export interface DeceiverData {
+  hurts: Record<Faction, "yes" | "no">;
+  advice: { yes: string[]; no: string[] };
+  greeting: string;
+  caught: string[];
+  tutorial: TutorialDay[];
+}
+
 export interface Content {
+  tells: Map<string, TellDef>;
+  vows: Map<string, VowDef>;
+  vowOrder: string[];
+  deals: Map<string, DealDef>;
+  dealOrder: string[];
+  deceiver: DeceiverData;
   archetypes: Map<string, ArchetypeDef>;
   archetypeOrder: string[];
   requests: Map<string, RequestDef>;
@@ -151,12 +194,26 @@ export interface RunStats {
   bestStreak: number;
   stops: number;
   arcsDone: number;
+  caught: number;
+  wrong: number;
 }
 
 export type RunOver = null | "win" | "lose" | "fall";
 
+export type VowStatus = "sworn" | "called" | "kept" | "broken" | "erased";
+export interface VowState { id: string; due: number; status: VowStatus }
+export interface Mark { faction: Faction; vow: string }
+export interface Advice { ruling: "yes" | "no"; lie: boolean }
+export interface Cur {
+  truth: boolean;
+  tell: string | null;
+  advice: Advice | null;
+}
+
+export type Ending = "usurped" | "collapse" | "weak" | "just" | "marked" | "hollow" | "long";
+
 export interface GameState {
-  v: 1;
+  v: 2;
   mode: Mode;
   seed: string;
   challenge: string | null;
@@ -173,13 +230,30 @@ export interface GameState {
   arcs: Record<string, ArcState>;
   omen: string | null;
   omenDays: Record<number, string>;
-  rng: { queue: number; wheel: number; fx: number; omen: number };
+  rng: { queue: number; wheel: number; fx: number; omen: number; dec: number; vow: number };
   wheel: Wheel | null;
   /** True while the day-end summary is being shown. */
   dayEnded: boolean;
   over: RunOver;
   cause: StatKey | null;
   stats: RunStats;
+  vows: VowState[];
+  marks: Mark[];
+  usurp: number;
+  expose: number;
+  /** Deal the Deceiver is offering at dawn, awaiting an answer. */
+  dealOffer: string | null;
+  dealsTaken: number;
+  activeDeals: Array<{ id: string; until: number }>;
+  debts: Array<{ due: number }>;
+  /** 0 = real run; 1..3 = scripted tutorial day (never counts toward the 25). */
+  tut: number;
+  /** Probability the Deceiver lies when the true ruling would hurt him. */
+  lieRate: number;
+  /** Deceiver returns after being exposed in Endless; escalates his deals. */
+  cycle: number;
+  cur: Cur;
+  ending: Ending | null;
   /** Intent-lock was used: excluded from the daily board. */
   assisted: boolean;
   /** Assist slows the wheel and widens segments; never changes scoring. */
@@ -188,10 +262,15 @@ export interface GameState {
 
 export type Ev =
   | { t: "ruling"; kind: SegKind; hazard?: string }
-  | { t: "delta"; src: "now" | "hazard" | "delayed" | "omen" | "tax" | "drag" | "fix" | "growth"; fx: Fx; icon?: string }
+  | { t: "delta"; src: "now" | "hazard" | "delayed" | "omen" | "tax" | "drag" | "fix" | "growth" | "wrong" | "deal"; fx: Fx; icon?: string }
   | { t: "later"; due: number; icon: string; hidden: boolean }
   | { t: "delayed.resolve"; icon: string; fx: Fx }
   | { t: "omen"; id: string }
+  | { t: "wrong"; stat: StatKey; amount: number }
+  | { t: "expose"; n: number; delta: number }
+  | { t: "vow"; id: string; result: "called" | "kept" | "broken" | "erased" }
+  | { t: "deal"; id: string; accepted: boolean }
+  | { t: "ending"; id: Ending }
   | { t: "day.end"; day: number }
   | { t: "reign.win" }
   | { t: "reign.lose"; cause: StatKey | "weak" };

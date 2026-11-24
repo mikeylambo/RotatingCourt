@@ -1,0 +1,18 @@
+[
+ { "id": "c1", "faction": "commons", "icons": ["ban","bread"], "line": "No tax on bread", "keep": "no", "due": [4, 22],
+   "request": { "id": "vow.c1", "archetype": "farmer", "ask": ["coin","bread"], "line": "Tax the bread.", "y": [0,-4,9], "n": [0,3,-6] } },
+ { "id": "c2", "faction": "commons", "icons": ["gate","give"], "line": "Open the gates", "keep": "yes", "due": [4, 22],
+   "request": { "id": "vow.c2", "archetype": "beggar", "ask": ["castle","person"], "line": "Hungry at the gate.", "y": [3,3,-7], "n": [0,-5,0] } },
+ { "id": "t1", "faction": "temple", "icons": ["shield","cross"], "line": "Guard the sanctuary", "keep": "no", "due": [4, 22],
+   "request": { "id": "vow.t1", "archetype": "priest", "ask": ["sword","cross"], "line": "Search the temple.", "y": [0,-4,6], "n": [-4,2,0] } },
+ { "id": "t2", "faction": "temple", "icons": ["cross","coin"], "line": "Honor the tithe", "keep": "no", "due": [4, 22],
+   "request": { "id": "vow.t2", "archetype": "priest", "ask": ["ban","coin"], "line": "Waive the tithe.", "y": [0,-3,8], "n": [-3,0,-4] } },
+ { "id": "a1", "faction": "army", "icons": ["sword","coin"], "line": "Pay the soldiers first", "keep": "yes", "due": [4, 22],
+   "request": { "id": "vow.a1", "archetype": "soldier", "ask": ["sword","coin"], "line": "The garrison wants pay.", "y": [0,-3,-9], "n": [-5,-2,0] } },
+ { "id": "a2", "faction": "army", "icons": ["banner","ban"], "line": "No war unvoted", "keep": "no", "due": [4, 22],
+   "request": { "id": "vow.a2", "archetype": "soldier", "ask": ["castle","shield"], "line": "Ride to war!", "y": [-6,0,8], "n": [0,-2,-4] } },
+ { "id": "y1", "faction": "treasury", "icons": ["scales","calendar"], "line": "Balance the ledger", "keep": "yes", "due": [18, 20],
+   "request": { "id": "vow.y1", "archetype": "banker", "ask": ["scales","book"], "line": "Cut the spending.", "y": [-3,-5,3], "n": [0,2,-6] } },
+ { "id": "y2", "faction": "treasury", "icons": ["ban","purse"], "line": "No new debt", "keep": "no", "due": [4, 22],
+   "request": { "id": "vow.y2", "archetype": "banker", "ask": ["purse","coin"], "line": "A loan, at interest.", "y": [0,-2,10], "n": [-3,-3,0] } }
+]
