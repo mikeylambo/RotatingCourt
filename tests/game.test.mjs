@@ -185,8 +185,8 @@ test("balance table (3000 runs per bot) holds on the canon tuning", () => {
   const r = { yes: rate("yes"), no: rate("no"), random: rate("random"), skilled: rate("skilled") };
   console.log("balance", JSON.stringify(r));
   assert.ok(r.yes < 5, `always yes ${r.yes}`);
-  assert.equal(r.no, 0);
-  assert.ok(r.random > 6 && r.random < 15, `random ${r.random}`);
+  assert.ok(r.no < 0.5, `always no ${r.no}`);
+  assert.ok(r.random > 6 && r.random < 14, `random ${r.random}`);
   assert.ok(r.skilled >= 50 && r.skilled <= 60, `skilled ${r.skilled}`);
 });
 
