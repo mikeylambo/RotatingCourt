@@ -320,7 +320,7 @@ test("endings: usurped, just, marked, hollow, long reign, endless returns strong
   const exposeNow = (s) => {
     const t = { ...tuning, lieRate: 1, tellPresence: 1 };
     const liar = [...content.requests.values()].find((r) => !r.vow && !r.forced && !r.id.startsWith("arc.") && !r.truth && content.deceiver.hurts[r.faction] === "no");
-    s.expose = tuning.exposeLimit - 1; setQueue(s, [liar.id], t);
+    s.lieRate = 1; s.expose = tuning.exposeLimit - 1; setQueue(s, [liar.id], t);
     api.rule(s, content, t, api.segOf(s.wheel, "no").start + 0.001);
     return s;
   };
