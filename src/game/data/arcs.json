@@ -1,0 +1,20 @@
+[
+ { "id": "field", "archetype": "farmer", "start": "farmer.a",
+   "yes": { "id": "arc.field.yes", "ask": ["wheat","heart"], "line": "A fine harvest.", "y": [4,4,-4], "n": [0,-2,8] },
+   "no":  { "id": "arc.field.no",  "ask": ["bowl","wheat"], "line": "My fields failed.", "y": [0,2,-8], "n": [-6,-3,0] } },
+ { "id": "debt", "archetype": "merchant", "start": "merchant.a",
+   "yes": { "id": "arc.debt.yes", "ask": ["coin","coin"], "line": "Repaid, with interest.", "y": [0,0,12], "n": [0,3,0] },
+   "no":  { "id": "arc.debt.no",  "ask": ["ban","coin"], "line": "Prices have risen.", "y": [0,2,-8], "n": [0,-4,-3] } },
+ { "id": "pact", "archetype": "vampire", "start": "vampire.a",
+   "yes": { "id": "arc.pact.yes", "ask": ["moon","coin"], "line": "A gift, for the pact.", "y": [-6,0,9], "n": [0,2,-3] },
+   "no":  { "id": "arc.pact.no",  "ask": ["fang","house"], "line": "I have not forgotten.", "y": [-3,0,-6], "n": [-8,-3,0] } },
+ { "id": "bargain", "archetype": "thief", "start": "thief.a",
+   "yes": { "id": "arc.bargain.yes", "ask": ["coin","key"], "line": "Your loot, returned.", "y": [0,-2,10], "n": [0,2,0] },
+   "no":  { "id": "arc.bargain.no",  "ask": ["dagger","lock"], "line": "The vault is mine.", "y": [0,0,-6], "n": [0,-3,-10] } },
+ { "id": "blessing", "archetype": "priest", "start": "priest.a",
+   "yes": { "id": "arc.blessing.yes", "ask": ["cross","heart"], "line": "The temple blesses you.", "y": [0,6,-3], "n": [0,-2,2] },
+   "no":  { "id": "arc.blessing.no",  "ask": ["cross","skull"], "line": "The temple cools.", "y": [0,0,-7], "n": [-3,-6,0] } },
+ { "id": "oath", "archetype": "soldier", "start": "soldier.a",
+   "yes": { "id": "arc.oath.yes", "ask": ["shield","heart"], "line": "The guard is loyal.", "y": [0,4,-3], "n": [0,0,3] },
+   "no":  { "id": "arc.oath.no",  "ask": ["fist","castle"], "line": "The guard is restless.", "y": [0,2,-8], "n": [-3,-8,0] } }
+]

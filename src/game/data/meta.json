@@ -1,0 +1,24 @@
+{
+  "achievements": [
+    { "id": "first-day",   "icon": "sun",     "label": "Day one" },
+    { "id": "first-win",   "icon": "crown",   "label": "Reign complete" },
+    { "id": "flourish",    "icon": "heart",   "label": "All stats high" },
+    { "id": "clean-day",   "icon": "shield",  "label": "Clean day" },
+    { "id": "steady-hand", "icon": "bolt",    "label": "Five clean stops" },
+    { "id": "daily",       "icon": "calendar","label": "Daily reign" },
+    { "id": "arcs",        "icon": "scroll",  "label": "Old debts" },
+    { "id": "endless-30",  "icon": "infinity","label": "Endless 30" },
+    { "id": "omen-bearer", "icon": "eclipse", "label": "Omen survived" },
+    { "id": "assist-free", "icon": "sword",   "label": "No assist win" },
+    { "id": "hazard-free", "icon": "fang",    "label": "No hazards" },
+    { "id": "broke-king",  "icon": "coin",    "label": "Thin treasury" }
+  ],
+  "challenges": [
+    { "id": "swift",   "icon": "bolt",   "label": "Swift", "tuning": { "speedBase": 0.65 }, "medals": [{ "medal": "bronze", "threshold": 1500 }, { "medal": "silver", "threshold": 2200 }, { "medal": "gold", "threshold": 2800 }] },
+    { "id": "lean",    "icon": "coin",   "label": "Lean",  "tuning": { "startG": 25, "taxPerPop": 0.04 }, "medals": [{ "medal": "bronze", "threshold": 1500 }, { "medal": "silver", "threshold": 2200 }, { "medal": "gold", "threshold": 2800 }] },
+    { "id": "grim",    "icon": "skull",  "label": "Grim",  "tuning": { "hazardScale": 1.4 }, "medals": [{ "medal": "bronze", "threshold": 1500 }, { "medal": "silver", "threshold": 2200 }, { "medal": "gold", "threshold": 2800 }] },
+    { "id": "narrow",  "icon": "eye",    "label": "Narrow","tuning": { "segYes": 0.3, "segNo": 0.3, "segHaz": 0.4 }, "medals": [{ "medal": "bronze", "threshold": 1500 }, { "medal": "silver", "threshold": 2200 }, { "medal": "gold", "threshold": 2800 }] },
+    { "id": "frail",   "icon": "heart",  "label": "Frail", "tuning": { "startH": 35, "dragBase": 2 }, "medals": [{ "medal": "bronze", "threshold": 1500 }, { "medal": "silver", "threshold": 2200 }, { "medal": "gold", "threshold": 2800 }] },
+    { "id": "gauntlet","icon": "crown",  "label": "Gauntlet", "tuning": { "speedBase": 0.6, "hazardScale": 1.2, "winMin": 40 }, "medals": [{ "medal": "bronze", "threshold": 1800 }, { "medal": "silver", "threshold": 2400 }, { "medal": "gold", "threshold": 3000 }] }
+  ]
+}

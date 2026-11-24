@@ -1,0 +1,74 @@
+[
+ { "id": "farmer", "hazard": "famine", "mag": 1, "look": [4,6,1,11,1,2], "reqs": [
+   { "id": "farmer.a", "ask": ["give","wheat"], "line": "Seed for spring.", "y": [0,3,-8], "yl": [[2,7,0,4]], "n": [0,-4,0], "arc": "field" },
+   { "id": "farmer.b", "ask": ["coin","wheat"], "line": "Lower my tithe.", "y": [0,5,-6], "n": [0,-4,2] } ] },
+ { "id": "baker", "hazard": "famine", "mag": 0.9, "look": [0,0,4,0,0,5], "reqs": [
+   { "id": "baker.a", "ask": ["give","bread"], "line": "Bread for the poor.", "y": [0,6,-7], "n": [-2,-5,0] },
+   { "id": "baker.b", "ask": ["fire","bread"], "line": "A bigger oven.", "y": [0,0,-9], "yl": [[2,2,0,8]], "n": [0,-1,0] } ] },
+ { "id": "merchant", "hazard": "bribe", "mag": 1, "look": [3,3,6,4,2,1], "reqs": [
+   { "id": "merchant.a", "ask": ["give","coin"], "line": "A loan, Majesty.", "y": [0,0,-10], "yl": [[3,0,0,14]], "n": [0,-2,0], "arc": "debt" },
+   { "id": "merchant.b", "ask": ["boat","coin"], "line": "Open the harbor.", "y": [0,-3,6], "yl": [[2,-3,0,0]], "n": [0,0,-3] } ] },
+ { "id": "noble", "hazard": "bribe", "mag": 1.2, "look": [2,1,3,3,0,6], "reqs": [
+   { "id": "noble.a", "ask": ["grant","castle"], "line": "Grant me land.", "y": [0,-6,8], "n": [0,0,-5] },
+   { "id": "noble.b", "ask": ["ban","fist"], "line": "Disarm the peasants.", "y": [0,-7,3], "n": [0,2,-4] } ] },
+ { "id": "vampire", "hazard": "bite", "mag": 1, "look": [2,4,3,9,0,7], "reqs": [
+   { "id": "vampire.a", "ask": ["give","moon"], "line": "Night entry.", "y": [-5,0,10], "yl": [[3,-5,0,0]], "n": [0,0,-3], "arc": "pact" },
+   { "id": "vampire.b", "ask": ["spare","fang"], "line": "Spare my brood.", "y": [-6,-2,0], "n": [0,3,-4] } ] },
+ { "id": "hunter", "hazard": "bite", "mag": 0.9, "look": [4,13,5,12,1,3], "reqs": [
+   { "id": "hunter.a", "ask": ["ban","wolf"], "line": "Cull the wolves.", "y": [3,0,-6], "n": [-4,0,0] },
+   { "id": "hunter.b", "ask": ["tent","tree"], "line": "The royal wood.", "y": [0,-4,4], "n": [0,1,-2] } ] },
+ { "id": "blacksmith", "hazard": "blaze", "mag": 1, "look": [1,0,4,7,3,0], "reqs": [
+   { "id": "blacksmith.a", "ask": ["build","sword"], "line": "Arm the guard.", "y": [0,0,-9], "yl": [[2,0,4,0]], "n": [0,-3,0] },
+   { "id": "blacksmith.b", "ask": ["hammer","coin"], "line": "Pay for iron.", "y": [3,0,-7], "n": [-2,-2,0] } ] },
+ { "id": "pyromancer", "hazard": "blaze", "mag": 1.2, "look": [3,9,0,10,2,4], "reqs": [
+   { "id": "pyromancer.a", "ask": ["fire","castle"], "line": "Light the beacons.", "y": [0,5,-5], "n": [0,-3,0] },
+   { "id": "pyromancer.b", "ask": ["fire","book"], "line": "Burn the heresies.", "y": [0,-5,4], "n": [0,3,-2] } ] },
+ { "id": "doctor", "hazard": "plague", "mag": 1, "look": [2,12,3,6,0,0], "reqs": [
+   { "id": "doctor.a", "ask": ["cross","house"], "line": "Quarantine the town.", "y": [0,-5,0], "yl": [[2,6,0,0]], "n": [-3,0,0], "nl": [[2,-5,0,0]] },
+   { "id": "doctor.b", "ask": ["give","bottle"], "line": "Fund my cure.", "y": [6,0,-9], "n": [-4,-2,0] } ] },
+ { "id": "beggar", "hazard": "plague", "mag": 0.9, "look": [3,4,5,0,1,6], "reqs": [
+   { "id": "beggar.a", "ask": ["give","coin"], "line": "A coin, please.", "y": [0,4,-4], "n": [0,-3,0] },
+   { "id": "beggar.b", "ask": ["give","house"], "line": "A roof.", "y": [2,3,-6], "n": [0,-3,0] } ] },
+ { "id": "thief", "hazard": "theft", "mag": 1, "look": [0,4,3,12,2,3], "reqs": [
+   { "id": "thief.a", "ask": ["spare","chain"], "line": "Free me.", "y": [0,0,-3], "yl": [[3,0,0,10]], "n": [0,3,0], "arc": "bargain" },
+   { "id": "thief.b", "ask": ["key","castle"], "line": "Guard the vault.", "y": [0,-2,3], "n": [0,0,-5] } ] },
+ { "id": "pirate", "hazard": "theft", "mag": 1.2, "look": [1,10,6,2,3,1], "reqs": [
+   { "id": "pirate.a", "ask": ["boat","coin"], "line": "Plunder tribute.", "y": [0,-4,10], "n": [0,1,-2] },
+   { "id": "pirate.b", "ask": ["give","cup"], "line": "A feast for the crew.", "y": [0,3,-8], "yl": [[2,0,0,6]], "n": [0,-3,0] } ] },
+ { "id": "witch", "hazard": "curse", "mag": 1, "look": [2,2,0,1,4,5], "reqs": [
+   { "id": "witch.a", "ask": ["moon","bottle"], "line": "Brew by moonlight.", "y": [0,0,-6], "yl": [[2,0,8,0]], "n": [0,-2,0] },
+   { "id": "witch.b", "ask": ["ban","fire"], "line": "Spare me the stake.", "y": [0,-5,4], "n": [0,4,-3] } ] },
+ { "id": "hermit", "hazard": "curse", "mag": 0.9, "look": [4,4,0,6,1,2], "reqs": [
+   { "id": "hermit.a", "ask": ["tree","house"], "line": "Leave me the wood.", "y": [0,2,-3], "n": [0,-3,2] },
+   { "id": "hermit.b", "ask": ["eye","book"], "line": "I foresaw ruin.", "y": [0,2,-6], "yl": [[3,4,3,0]], "n": [0,-4,0] } ] },
+ { "id": "fisher", "hazard": "flood", "mag": 1, "look": [1,6,5,5,0,4], "reqs": [
+   { "id": "fisher.a", "ask": ["fish","boat"], "line": "New nets.", "y": [0,0,-7], "yl": [[2,5,0,5]], "n": [-3,0,0] },
+   { "id": "fisher.b", "ask": ["wave","house"], "line": "Raise the dike.", "y": [3,0,-9], "n": [-6,-2,0] } ] },
+ { "id": "miller", "hazard": "flood", "mag": 1.1, "look": [3,0,1,0,3,7], "reqs": [
+   { "id": "miller.a", "ask": ["wheat","coin"], "line": "Fair price for flour.", "y": [0,5,-5], "n": [0,-4,0] },
+   { "id": "miller.b", "ask": ["wave","wheat"], "line": "Dam the stream.", "y": [0,0,-8], "yl": [[3,4,0,8]], "n": [-2,-1,0] } ] },
+ { "id": "soldier", "hazard": "riot", "mag": 1, "look": [1,5,2,2,2,0], "reqs": [
+   { "id": "soldier.a", "ask": ["sword","coin"], "line": "Pay the garrison.", "y": [0,2,-9], "n": [0,-6,0], "arc": "oath" },
+   { "id": "soldier.b", "ask": ["castle","shield"], "line": "March to war.", "y": [-6,2,5], "n": [0,-3,0] } ] },
+ { "id": "rebel", "hazard": "riot", "mag": 1.2, "look": [0,11,1,10,4,6], "reqs": [
+   { "id": "rebel.a", "ask": ["ban","coin"], "line": "End the tax.", "y": [0,7,-8], "n": [0,-6,0] },
+   { "id": "rebel.b", "ask": ["fist","banner"], "line": "Hear the people.", "y": [0,4,-3], "n": [0,-5,0] } ] },
+ { "id": "priest", "hazard": "schism", "mag": 1, "look": [3,8,0,8,0,0], "reqs": [
+   { "id": "priest.a", "ask": ["cross","coin"], "line": "Fund the chapel.", "y": [0,3,-8], "yl": [[3,3,8,0]], "n": [0,-3,0], "arc": "blessing" },
+   { "id": "priest.b", "ask": ["bell","cross"], "line": "Ring the bells.", "y": [0,4,-2], "n": [0,-2,1] } ] },
+ { "id": "bard", "hazard": "schism", "mag": 0.9, "look": [3,10,3,13,2,7], "reqs": [
+   { "id": "bard.a", "ask": ["lute","heart"], "line": "A song for you.", "y": [0,5,-3], "n": [0,-3,0] },
+   { "id": "bard.b", "ask": ["lute","banner"], "line": "Sing of the war.", "y": [-2,4,0], "n": [0,-1,0] } ] },
+ { "id": "scribe", "hazard": "audit", "mag": 1, "look": [2,0,6,3,1,3], "reqs": [
+   { "id": "scribe.a", "ask": ["scroll","coin"], "line": "Count the census.", "y": [0,0,-5], "yl": [[1,0,0,9]], "n": [0,-1,0] },
+   { "id": "scribe.b", "ask": ["book","lock"], "line": "Seal the archives.", "y": [0,-3,4], "n": [0,1,-3] } ] },
+ { "id": "banker", "hazard": "audit", "mag": 1.2, "look": [1,3,0,8,0,2], "reqs": [
+   { "id": "banker.a", "ask": ["scales","coin"], "line": "Raise the interest.", "y": [0,-5,9], "n": [0,0,-3] },
+   { "id": "banker.b", "ask": ["give","coin"], "line": "Credit for farms.", "y": [0,0,-6], "yl": [[3,6,0,4]], "n": [-2,-1,0] } ] },
+ { "id": "alchemist", "hazard": "chaos", "mag": 1, "look": [3,5,4,9,2,4], "reqs": [
+   { "id": "alchemist.a", "ask": ["bottle","coin"], "line": "Gold from lead!", "y": [0,0,-8], "yl": [[2,0,0,10]], "n": [0,0,0] },
+   { "id": "alchemist.b", "ask": ["bottle","heart"], "line": "A tonic for all.", "y": [2,5,-6], "n": [0,-2,0] } ] },
+ { "id": "jester", "hazard": "chaos", "mag": 1.1, "look": [0,7,1,1,3,6], "reqs": [
+   { "id": "jester.a", "ask": ["mask","crown"], "line": "A jest at court!", "y": [0,5,-3], "n": [0,-3,0] },
+   { "id": "jester.b", "ask": ["die","coin"], "line": "Wager the treasury.", "y": [0,-2,7], "n": [0,1,-2] } ] }
+]

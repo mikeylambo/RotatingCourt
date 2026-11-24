@@ -1,0 +1,14 @@
+{
+  "chaos":  { "icon": "die",     "pattern": "checker",  "edge": "notch",   "now": [0, 0, 0], "later": [], "pool": [[0, 9, 0], [0, -9, 0], [0, 0, 11], [0, 0, -11], [7, 0, 0], [-7, 0, 0], [0, -6, 6], [4, 4, 4]] },
+  "bribe":  { "icon": "purse",   "pattern": "rings",    "edge": "scallop", "now": [0, 0, 14], "later": [[3, 0, -6, -4, 1]] },
+  "bite":   { "icon": "fang",    "pattern": "teeth",    "edge": "saw",     "now": [-8, -3, 0], "later": [] },
+  "blaze":  { "icon": "flame",   "pattern": "zigzag",   "edge": "saw",     "now": [0, -6, -6], "later": [] },
+  "plague": { "icon": "drops",   "pattern": "dots",     "edge": "scallop", "now": [-4, 0, 0], "later": [[2, -6, 0, 0, 0]] },
+  "theft":  { "icon": "dagger",  "pattern": "slashes",  "edge": "notch",   "now": [0, 0, -14], "later": [] },
+  "curse":  { "icon": "eye",     "pattern": "spiral",   "edge": "scallop", "now": [0, -3, 0], "later": [[2, 0, -10, 0, 0]] },
+  "flood":  { "icon": "wave",    "pattern": "waves",    "edge": "scallop", "now": [-5, 0, -7], "later": [] },
+  "riot":   { "icon": "fist",    "pattern": "chevrons", "edge": "saw",     "now": [0, -12, 0], "later": [] },
+  "famine": { "icon": "bowl",    "pattern": "hatch",    "edge": "notch",   "now": [-4, -5, 0], "later": [[1, -3, 0, 0, 0]] },
+  "schism": { "icon": "split",   "pattern": "halves",   "edge": "notch",   "now": [0, -5, 0], "later": [[3, 0, -5, 0, 0]] },
+  "audit":  { "icon": "scales",  "pattern": "grid",     "edge": "saw",     "now": [0, -2, -10], "later": [] }
+}
